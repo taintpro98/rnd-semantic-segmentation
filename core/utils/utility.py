@@ -9,22 +9,22 @@ def mkdir(path):
         if e.errno != errno.EEXIST:
             raise
 
-# class AverageMeter(object):
-#     """Computes and stores the average and current value"""
-#     def __init__(self):
-#         self.reset()
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+    def __init__(self):
+        self.reset()
 
-#     def reset(self):
-#         self.val = 0
-#         self.avg = 0
-#         self.sum = 0
-#         self.count = 0
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
 
-#     def update(self, val, n=1):
-#         self.val = val
-#         self.sum += val * n
-#         self.count += n
-#         self.avg = self.sum / self.count
+    def update(self, val):
+        self.val = val
+        self.sum += val
+        self.count += 1
+        self.avg = self.sum / self.count
 
 def intersectionAndUnion(output, target, K, ignore_index=255):
     # 'K' classes, output and target sizes are N or N * L or N * H * W, each value in range 0 to K - 1.

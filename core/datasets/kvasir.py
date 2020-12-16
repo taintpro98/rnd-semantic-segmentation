@@ -13,18 +13,23 @@ from glob import glob
 class KvasirDataSet(Dataset):
     def __init__(self, data_root, num_classes=2, mode="train", cross_val=0, transform=None, ignore_label=255, debug=False):
         super(KvasirDataSet, self).__init__()
-
-        self.data_root = data_root
-        image_names = [file for file in os.listdir(os.path.join(self.data_root, 'images')) if file.endswith('.png') or file.endswith('.jpg')]
-        
-        self.image_names = []
-        for img_name in image_names:
-            if self.check_gt(img_name):
-                self.image_names.append(img_name)
-            else:
-                print("[WARNING] Can't found label for {}, skipped".format(img_name))
+        self.data_root = data_root        
+        self.image_paths = []
+        # for img_name in image_names:
+        #     if self.check_gt(img_name):
+        #         self.image_names.append(img_name)
+        #     else:
+        #         print("[WARNING] Can't found label for {}, skipped".format(img_name))
 
         kfolds = glob(data_root + "/*/")
+        if mode == "train":
+            for kfold_path in kfolds:
+                if str(cross_val) not in os.path.basename(kfold_path):
+                    self.image_paths += [img_path for img_path in glob(os.path.join(kfold_path, 'images') + '/*.png')]
+        else:
+            for kfold_path in kfolds:
+                if str(cross_val) in os.path.basename(kfold_path):
+                    self.image_paths += [img_path for img_path in glob(os.path.join(kfold_path, 'images') + '/*.png')]
 
         self.trainid2name = {
             0: "background",
@@ -37,10 +42,10 @@ class KvasirDataSet(Dataset):
         self.ignore_label = ignore_label
         self.transform = transform
 
-    def check_gt(self, img_name):
-        path = os.path.join(self.data_root, 'masks', img_name)
-        is_file = os.path.isfile(path) 
-        return is_file
+    # def check_gt(self, img_name):
+    #     path = os.path.join(self.data_root, 'masks', img_name)
+    #     is_file = os.path.isfile(path) 
+    #     return is_file
 
     def __len__(self):
         return len(self.image_names)
@@ -48,10 +53,13 @@ class KvasirDataSet(Dataset):
     def __getitem__(self, index):
         if self.debug:
             index = 0
+        img_name = os.path.basename(self.image_names[index])
+        img_dir = os.path.dirname(os.path.dirname(self.image_paths[index]))
+
         datafile = {
-            'img': os.path.join(self.data_root, 'images', self.image_names[index]),
-            'label': os.path.join(self.data_root, 'masks', self.image_names[index]),
-            'name': self.image_names[index][:-4]
+            'img': img_name,
+            'label': os.path.join(img_dir, 'masks', img_name)
+            'name': img_name[index][:-4]
         }
 
         image = Image.open(datafile["img"]).convert('RGB')
