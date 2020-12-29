@@ -24,11 +24,11 @@ class KvasirDataSet(Dataset):
         kfolds = glob(data_root + "/*/")
         if mode == "train":
             for kfold_path in kfolds:
-                if str(cross_val) not in os.path.basename(kfold_path):
+                if str(cross_val) not in os.path.basename(kfold_path[:-1]):
                     self.image_paths += [img_path for img_path in glob(os.path.join(kfold_path, 'images') + '/*.png')]
         else:
             for kfold_path in kfolds:
-                if str(cross_val) in os.path.basename(kfold_path):
+                if str(cross_val) in os.path.basename(kfold_path[:-1]):
                     self.image_paths += [img_path for img_path in glob(os.path.join(kfold_path, 'images') + '/*.png')]
 
         self.trainid2name = {
@@ -48,18 +48,18 @@ class KvasirDataSet(Dataset):
     #     return is_file
 
     def __len__(self):
-        return len(self.image_names)
+        return len(self.image_paths)
 
     def __getitem__(self, index):
         if self.debug:
             index = 0
-        img_name = os.path.basename(self.image_names[index])
+        img_name = os.path.basename(self.image_paths[index])
         img_dir = os.path.dirname(os.path.dirname(self.image_paths[index]))
 
         datafile = {
-            'img': img_name,
-            'label': os.path.join(img_dir, 'masks', img_name)
-            'name': img_name[index][:-4]
+            'img': self.image_paths[index],
+            'label': os.path.join(img_dir, 'masks', img_name),
+            'name': img_name[:-4]
         }
 
         image = Image.open(datafile["img"]).convert('RGB')

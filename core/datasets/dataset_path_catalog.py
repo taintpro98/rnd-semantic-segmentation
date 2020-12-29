@@ -1,9 +1,10 @@
 import os
-from .cityscapes import cityscapesDataSet
-from .cityscapes_self_distill import cityscapesSelfDistillDataSet
-from .synthia import synthiaDataSet
-from .gta5 import GTA5DataSet
+# from .cityscapes import cityscapesDataSet
+# from .cityscapes_self_distill import cityscapesSelfDistillDataSet
+# from .synthia import synthiaDataSet
+# from .gta5 import GTA5DataSet
 from .kvasir import KvasirDataSet
+from .polyp import PolypDataset
 
 class DatasetCatalog(object):
     DATASET_DIR = "datasets"
@@ -32,11 +33,23 @@ class DatasetCatalog(object):
         "kvasir_train": {
             "data_dir": "kvasir",
             "data_list": ""
+        },
+        "kvasir_val": {
+            "data_dir": "kvasir",
+            "data_list": ""
+        },
+        "polyp_train": {
+            "data_dir": "kvasir",
+            "data_list": ""
+        },
+        "polyp_val": {
+            "data_dir": "kvasir",
+            "data_list": ""
         }
     }
 
     @staticmethod
-    def get(name, mode, num_classes, max_iters=None, transform=None, cross_val=None):
+    def get(cfg, name, mode, num_classes, max_iters=None, transform=None, cross_val=None):
         if "gta5" in name:
             data_dir = DatasetCatalog.DATASET_DIR
             attrs = DatasetCatalog.DATASETS[name]
@@ -72,4 +85,12 @@ class DatasetCatalog(object):
                 data_list=os.path.join(data_dir, attrs["data_list"]),
             )
             return KvasirDataSet(args["root"], num_classes=num_classes, mode=mode, cross_val=cross_val, transform=transform)
+        elif "polyp" in name:
+            data_dir = DatasetCatalog.DATASET_DIR
+            attrs = DatasetCatalog.DATASETS[name]
+            args = dict(
+                root=os.path.join(data_dir, attrs["data_dir"]),
+                data_list=os.path.join(data_dir, attrs["data_list"]),
+            )
+            return PolypDataset(args["root"], mode=mode, cross_val=cross_val, trainsize=cfg.INPUT.TRAINSIZE)
         raise RuntimeError("Dataset not available: {}".format(name))

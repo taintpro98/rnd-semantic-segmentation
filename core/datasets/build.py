@@ -46,11 +46,11 @@ def build_dataset(cfg, mode='train', is_source=True, epochwise=False):
         if not epochwise:
             iters = cfg.SOLVER.MAX_ITER*cfg.SOLVER.BATCH_SIZE
         if is_source:
-            dataset = DatasetCatalog.get(cfg.DATASETS.SOURCE_TRAIN, mode, num_classes=cfg.MODEL.NUM_CLASSES, max_iters=iters, transform=transform, cross_val=cfg.DATASETS.CROSS_VAL)
+            dataset = DatasetCatalog.get(cfg, cfg.DATASETS.SOURCE_TRAIN, mode, num_classes=cfg.MODEL.NUM_CLASSES, max_iters=iters, transform=transform, cross_val=cfg.DATASETS.CROSS_VAL)
         else:
-            dataset = DatasetCatalog.get(cfg.DATASETS.TARGET_TRAIN, mode, num_classes=cfg.MODEL.NUM_CLASSES, max_iters=iters, transform=transform, cross_val=cfg.DATASETS.CROSS_VAL)
+            dataset = DatasetCatalog.get(cfg, cfg.DATASETS.TARGET_TRAIN, mode, num_classes=cfg.MODEL.NUM_CLASSES, max_iters=iters, transform=transform, cross_val=cfg.DATASETS.CROSS_VAL)
     elif mode=='val':
-        dataset = DatasetCatalog.get(cfg.DATASETS.TEST, 'val', num_classes=cfg.MODEL.NUM_CLASSES, max_iters=iters, transform=transform, cross_val=cfg.DATASETS.CROSS_VAL)
+        dataset = DatasetCatalog.get(cfg, cfg.DATASETS.TEST, 'val', num_classes=cfg.MODEL.NUM_CLASSES, max_iters=iters, transform=transform, cross_val=cfg.DATASETS.CROSS_VAL)
     elif mode=='test':
-        dataset = DatasetCatalog.get(cfg.DATASETS.TEST, cfg.DATASETS.TEST.split('_')[-1], num_classes=cfg.MODEL.NUM_CLASSES, max_iters=iters, transform=transform, cross_val=cfg.DATASETS.CROSS_VAL)
+        dataset = DatasetCatalog.get(cfg, cfg.DATASETS.TEST, cfg.DATASETS.TEST.split('_')[-1], num_classes=cfg.MODEL.NUM_CLASSES, max_iters=iters, transform=transform, cross_val=cfg.DATASETS.CROSS_VAL)
     return dataset

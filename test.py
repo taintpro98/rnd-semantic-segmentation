@@ -1,6 +1,7 @@
 import argparse
 import logging
 from tqdm import tqdm
+import numpy as np
 
 import torch
 
@@ -52,10 +53,10 @@ def test(cfg):
 
         output = pred.max(1)[1]
         intersection, union, target, res = intersectionAndUnionGPU(output, y, cfg.MODEL.NUM_CLASSES, cfg.INPUT.IGNORE_LABEL)
-        intersection, union, target, res = intersection.cpu().numpy(), union.cpu().numpy(), target.cpu().numpy(), res.numpy()
+        intersection, union, target, res = intersection.cpu().numpy(), union.cpu().numpy(), target.cpu().numpy(), res.cpu().numpy()
 
-        iou = intersection/float(union)
-        f1 = 2*intersection/float(target + union)
+        iou = intersection/(union + 1e-10)
+        f1 = 2*intersection/(target + union + 1e-10)
 
         count += 1
         intersection_sum += intersection
@@ -68,16 +69,16 @@ def test(cfg):
     pp1_f1 = f1_sum/float(count)
     pp1_iou = iou_sum/float(count)
 
-    pp2_f1 = 2*intersection_sum/float(target_sum + union_sum)
-    pp2_iou = intersection_sum/float(union_sum)
+    pp2_f1 = 2*intersection_sum/(target_sum + union_sum + 1e-10)
+    pp2_iou = intersection_sum/(union_sum + 1e-10)
 
     mIoU = np.mean(pp1_iou)
     mF1 = np.mean(pp1_f1)
-    logger.info('Method 1, val result: mIoU/mF1 {:.4f}/{:.4f}/{:.4f}.'.format(mIoU, mF1))
+    logger.info('Method 1, val result: mIoU/mF1 {:.4f}/{:.4f}.'.format(mIoU, mF1))
 
     mIoU = np.mean(pp2_iou)
     mF1 = np.mean(pp2_f1)
-    logger.info('Method 2, val result: mIoU/mF1 {:.4f}/{:.4f}/{:.4f}.'.format(mIoU, mF1))
+    logger.info('Method 2, val result: mIoU/mF1 {:.4f}/{:.4f}.'.format(mIoU, mF1))
 
     for i in range(cfg.MODEL.NUM_CLASSES):
         logger.info('Method 1, class {} iou/f1 score: {:.4f}/{:.4f}.'.format(i, pp1_iou[i], pp1_f1[i]))
@@ -107,7 +108,7 @@ def main():
     cfg.merge_from_list(args.opts)
     cfg.freeze()
 
-    logger.info("Loaded configuration file {}".format(args.config_file))
+    print("Loaded configuration file {}".format(args.config_file))
     test(cfg)
 
 if __name__ == "__main__":
