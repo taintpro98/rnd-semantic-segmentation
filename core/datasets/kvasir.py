@@ -63,7 +63,7 @@ class KvasirDataSet(Dataset):
         }
 
         image = Image.open(datafile["img"]).convert('RGB')
-        label = np.array(Image.open(datafile["label"]),dtype=np.float32)
+        label = np.array(Image.open(datafile["label"]), dtype=np.float32)
         name = datafile["name"]
 
         # re-assign labels to match the format of Cityscapes

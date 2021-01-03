@@ -1,4 +1,9 @@
+import json
 import numpy as np
+from PIL import Image
+
+from collections import defaultdict
+from collections import deque
 
 import torch
 import torch.nn.functional as F
@@ -26,6 +31,65 @@ class AverageMeter(object):
         self.sum += val
         self.count += 1
         self.avg = self.sum / self.count
+
+class SmoothedValue(object):
+    """Track a series of values and provide access to smoothed values over a
+    window or the global series average.
+    """
+
+    def __init__(self, window_size=20):
+        self.deque = deque(maxlen=window_size)
+        self.series = []
+        self.total = 0.0
+        self.count = 0
+
+    def update(self, value):
+        self.deque.append(value)
+        self.series.append(value)
+        self.count += 1
+        self.total += value
+
+    @property
+    def median(self):
+        d = torch.tensor(list(self.deque))
+        return d.median().item()
+
+    @property
+    def avg(self):
+        d = torch.tensor(list(self.deque))
+        return d.mean().item()
+
+    @property
+    def global_avg(self):
+        return self.total / self.count
+
+class MetricLogger(object):
+    def __init__(self, delimiter="\t"):
+        self.meters = defaultdict(SmoothedValue)
+        self.delimiter = delimiter
+
+    def update(self, **kwargs):
+        for k, v in kwargs.items():
+            if isinstance(v, torch.Tensor):
+                v = v.item()
+            assert isinstance(v, (float, int))
+            self.meters[k].update(v)
+
+    def __getattr__(self, attr):
+        if attr in self.meters:
+            return self.meters[attr]
+        if attr in self.__dict__:
+            return self.__dict__[attr]
+        raise AttributeError("'{}' object has no attribute '{}'".format(
+                    type(self).__name__, attr))
+
+    def __str__(self):
+        loss_str = []
+        for name, meter in self.meters.items():
+            loss_str.append(
+                "{}: {:.4f} ({:.4f})".format(name, meter.median, meter.global_avg)
+            )
+        return self.delimiter.join(loss_str)
 
 def intersectionAndUnion(output, target, K, ignore_index=255):
     # 'K' classes, output and target sizes are N or N * L or N * H * W, each value in range 0 to K - 1.
@@ -80,11 +144,25 @@ def inference(feature_extractor, classifier, image, label, flip=True):
         output = output[0]
     return output.unsqueeze(dim=0)
 
-def get_color_pallete(pred):
-    output = pred.max(1)[1]
-    output = output.numpy()
-    output = output.transpose(1,2,0)
-    label = output.squeeze(2)
-    label = Image.fromarray(label.astype('uint8')).convert('P')
-    label.putpalette(cityspallete)
+def get_color_pallete(pred, pallete):
+    """
+        :pred: H * W numpy array with 0 and 1
+    """
+    label = Image.fromarray(pred.astype('uint8')).convert('P')
+    label.putpalette(pallete)
     return label
+
+def load_json(json_path):
+    with open(json_path) as ref:
+        data = json.load(ref)
+    return data
+
+def load_text(path):
+    with open(path, "r") as ref:
+        samples = [line.rstrip() for line in ref]
+    return samples
+
+def dump_text(path, data):
+    with open(path, 'w') as ref:
+        for line in data:
+            ref.write("%s\n" % line)

@@ -1,6 +1,7 @@
 import argparse
 import os
-import json
+import cv2
+# import json
 # import datetime
 # import logging
 # import time
@@ -10,129 +11,31 @@ from collections import OrderedDict
 import re
 import matplotlib.pyplot as plt
 # import matplotlib.image as mpimg
+
 import torch
 import torchvision
 import torch.nn.functional as F
-from skimage.color import label2rgb
+import torchvision.transforms as transforms
+
+# from skimage.color import label2rgb
 from PIL import Image
-from tensorboardX import SummaryWriter
+# from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 
 from core.configs import cfg
-from core.datasets import build_dataset, transform
-from core.models import build_model, build_feature_extractor, build_classifier
+from core.datasets.build import build_dataset, transform
+from core.models.build import build_model, build_feature_extractor, build_classifier
 # from core.solver import adjust_learning_rate
-from core.utils.utility import mkdir, AverageMeter, intersectionAndUnionGPU, get_color_pallete, inference, strip_prefix_if_present
+from core.utils.utility import mkdir, AverageMeter, intersectionAndUnionGPU, get_color_pallete, inference, strip_prefix_if_present, load_json, load_text
 # from core.utils.logger import setup_logger
 # from core.utils.metric_logger import MetricLogger
+from core.models.classifiers.pranet.PraNet_Res2Net import PraNet
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-config_file = "configs/deeplabv2_r101_tgt_self_distill.yaml"
+config_file = "configs/pranet_src_polyp.yaml"
 cfg.merge_from_file(config_file)
 # cfg.merge_from_list(None)
 cfg.freeze()
-
-id_to_trainid = {
-    7: 0,
-    8: 1,
-    11: 2,
-    12: 3,
-    13: 4,
-    17: 5,
-    19: 6,
-    20: 7,
-    21: 8,
-    22: 9,
-    23: 10,
-    24: 11,
-    25: 12,
-    26: 13,
-    27: 14,
-    28: 15,
-    31: 16,
-    32: 17,
-    33: 18,
-}
-cityspallete = [
-            128, 64, 128,
-            244, 35, 232,
-            70, 70, 70,
-            102, 102, 156,
-            190, 153, 153,
-            153, 153, 153,
-            250, 170, 30,
-            220, 220, 0,
-            107, 142, 35,
-            152, 251, 152,
-            0, 130, 180,
-            220, 20, 60,
-            255, 0, 0,
-            0, 0, 142,
-            0, 0, 70,
-            0, 60, 100,
-            0, 80, 100,
-            0, 0, 230,
-            119, 11, 32,
-        ]
-gta5_trainid2name = {
-            0: "road",
-            1: "sidewalk",
-            2: "building",
-            3: "wall",
-            4: "fence",
-            5: "pole",
-            6: "light",
-            7: "sign",
-            8: "vegetation",
-            9: "terrain",
-            10: "sky",
-            11: "person",
-            12: "rider",
-            13: "car",
-            14: "truck",
-            15: "bus",
-            16: "train",
-            17: "motocycle",
-            18: "bicycle",
-        }
-synthia_trainid2name = {
-                0: "road",
-                1: "sidewalk",
-                2: "building",
-                3: "wall",
-                4: "fence",
-                5: "pole",
-                6: "light",
-                7: "sign",
-                8: "vegetation",
-                9: "sky",
-                10: "person",
-                11: "rider",
-                12: "car",
-                13: "bus",
-                14: "motocycle",
-                15: "bicycle",
-            }
-trainid2name = {
-            0: "road",
-            1: "sidewalk",
-            2: "building",
-            3: "wall",
-            4: "fence",
-            5: "pole",
-            6: "light",
-            7: "sign",
-            8: "vegetation",
-            9: "terrain",
-            10: "sky",
-            11: "person",
-            12: "rider",
-            13: "car",
-            14: "truck",
-            15: "bus",
-            16: "train",
-            17: "motocycle",
-            18: "bicycle",
-        }
 
 # COLORS = ('white','red', 'blue', 'yellow', 'magenta', 
 #             'green', 'indigo', 'darkorange', 'cyan', 'pink', 
@@ -151,8 +54,11 @@ def matplotlib_imshow(img, one_channel=False):
         
 def convert_pilimgs2tensor(images):
     res = []
-    for i in images:
-        res.append(np.array(i.convert('RGB')))
+    for idx, i in enumerate(images):
+        if idx==1:
+            res.append(np.array(i.convert('RGB')) * 255)
+        else:
+            res.append(np.array(i.convert('RGB')))
     res = np.stack(res, axis=0)
     res = res.transpose(0, 3, 1, 2)
     res = torch.from_numpy(res)
@@ -160,38 +66,55 @@ def convert_pilimgs2tensor(images):
     
 def dump_pr_curve(pred, label, id2name, writer):
     """
-        :pred: numpy array H x W x num_class
-        :label: numpy array H x W x 1
+        :pred: numpy array (H*W, num_class)
+        :label: numpy array (H * W, )
     """
-    for clss in range(pred.shape[2]):
+    for clss in range(pred.shape[1]):
         labels = (label == clss) * 1
-        predictions = pred[:, :, clss]
-        writer.add_pr_curve(id2name[clss], labels, predictions, clss)
+        predictions = pred[:, clss]
+        writer.add_pr_curve(id2name[str(clss)], labels, predictions, clss)
 
-def build_transform(cfg):
+def build_transform(name, cfg):
     w, h = cfg.INPUT.INPUT_SIZE_TEST
-    trans = transform.Compose([
-        transform.Resize((h, w), resize_label=False),
-        transform.ToTensor(),
-        transform.Normalize(mean=cfg.INPUT.PIXEL_MEAN, std=cfg.INPUT.PIXEL_STD, to_bgr255=cfg.INPUT.TO_BGR255)
-    ])
+    if name == "aspp":
+        trans = transform.Compose([
+            transform.Resize((h, w), resize_label=False),
+            transform.ToTensor(),
+            transform.Normalize(mean=cfg.INPUT.PIXEL_MEAN, std=cfg.INPUT.PIXEL_STD, to_bgr255=cfg.INPUT.TO_BGR255)
+        ])
+    elif name == "pranet":
+        def trans(image, label):
+            img_transform = transforms.Compose([
+            transforms.Resize((w, h)),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
+            gt_transform = transforms.ToTensor()
+            image = img_transform(image)
+            return image, label
     return trans
 
-def build_model(resume):
-    feature_extractor = build_feature_extractor(cfg)
-    feature_extractor.to(device)
+def build_model(name, resume):
+    if name == "aspp":
+        feature_extractor = build_feature_extractor(cfg)
+        feature_extractor.to(device)
 
-    classifier = build_classifier(cfg)
-    classifier.to(device)
+        classifier = build_classifier(cfg)
+        classifier.to(device)
 
-    feature_extractor.eval()
-    classifier.eval()
-    checkpoint = torch.load(resume, map_location=torch.device('cpu'))
-    feature_extractor_weights = strip_prefix_if_present(checkpoint['feature_extractor'], 'module.')
-    feature_extractor.load_state_dict(feature_extractor_weights)
-    classifier_weights = strip_prefix_if_present(checkpoint['classifier'], 'module.')
-    classifier.load_state_dict(classifier_weights)
-    return feature_extractor, classifier
+        feature_extractor.eval()
+        classifier.eval()
+        checkpoint = torch.load(resume, map_location=torch.device('cpu'))
+        feature_extractor_weights = strip_prefix_if_present(checkpoint['feature_extractor'], 'module.')
+        feature_extractor.load_state_dict(feature_extractor_weights)
+        classifier_weights = strip_prefix_if_present(checkpoint['classifier'], 'module.')
+        classifier.load_state_dict(classifier_weights)
+        return feature_extractor, classifier
+    elif name == "pranet":
+        model = PraNet()
+        model.load_state_dict(torch.load(resume, map_location=device))
+        model.to(device)
+        model.eval()
+        return model
 
 # def convert_pred2rgb(pred):
 #     output = pred.max(1)[1]
@@ -200,80 +123,114 @@ def build_model(resume):
 #     label = output.squeeze(2)
 #     return label2rgb(label)
 
-def get_pred(resume):
-    feature_extractor, classifier = build_model(resume)
-    pred = inference(feature_extractor, classifier, image, label, flip=False)
+def get_output(name, resume, image, label):
+    """
+
+        :return: numpy array H x W x C
+    """
+    image = image.to(device)
+    if name == "aspp":
+        feature_extractor, classifier = build_model(name, resume)
+        output = inference(feature_extractor, classifier, image, label, flip=False) # tensor (B=1) x C x H x W    
+        # pred = output.max(1)[1]
+        output = output.cpu().numpy()
+        output = output.transpose(0,2,3,1) 
+        output = output.squeeze(0) # H * W * C numpy array with scores
+        return output
+    elif name == "pranet":
+        gt = np.asarray(label, np.float32)
+        gt /= (gt.max() + 1e-8)
+        model = build_model(name, resume)
+        
+        res5, res4, res3, res2 = model(image)
+        output = res2
+        output = F.upsample(output, size=gt.shape, mode='bilinear', align_corners=False)
+        output = output.sigmoid().data.cpu().numpy().squeeze()
+        output = (output - output.min()) / (output.max() - output.min() + 1e-8)
+        output = np.stack([1-output, output], axis=2) # create a H x W x 2 numpy array with 0 background and 1 polyp
+        return output
+
+def get_pred(output):
+    """
+        :output: numpy array H x W x C
+        :return: numpy array H x W with classses
+    """
+    pred = output.argmax(2) # H * W numpy array with classes
     return pred
-
-def add_curve(writer, pred, label):
-    pred = pred.numpy()
-    pred = pred.transpose(0,2,3,1)
-    pred = pred.squeeze(0)
-    dump_pr_curve(pred, label, trainid2name, writer)
-
-src_resume = "/Users/macbook/Documents/AI/DomainAdaptation/weights/fada/25-10-2020/src.pth"
-adv_resume = "/Users/macbook/Documents/AI/DomainAdaptation/weights/fada/25-10-2020/adv.pth"
-sd_resume = "/Users/macbook/Documents/AI/DomainAdaptation/weights/fada/25-10-2020/sd.pth"
-
-# img_path = "/Users/macbook/Documents/AI/DomainAdaptation/dataset/GTA5/images/00756.png"
-# lab_path = "/Users/macbook/Documents/AI/DomainAdaptation/dataset/GTA5/labels/00756.png"
-
-img_path = "/Users/macbook/Documents/AI/DomainAdaptation/dataset/leftImg8bit_trainvaltest/leftImg8bit/train/monchengladbach/monchengladbach_000000_010733_leftImg8bit.png"
-lab_path = "/Users/macbook/Documents/AI/DomainAdaptation/dataset/gtFine_trainvaltest/gtFine/train/monchengladbach/monchengladbach_000000_010733_gtFine_color.png"
-bin_lab_path = "/Users/macbook/Documents/AI/DomainAdaptation/dataset/gtFine_trainvaltest/gtFine/train/monchengladbach/monchengladbach_000000_010733_gtFine_labelIds.png"
-
-# img_path = "/Users/macbook/Documents/AI/DomainAdaptation/dataset/leftImg8bit_trainvaltest/leftImg8bit/val/munster/munster_000031_000019_leftImg8bit.png"
-# lab_path = "/Users/macbook/Documents/AI/DomainAdaptation/dataset/gtFine_trainvaltest/gtFine/val/munster/munster_000031_000019_gtFine_color.png"
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--config_path', default='demo_config.json', help='path to config')
+    parser.add_argument('-c', '--config_path', default='configs/demo_config.json', help='path to config')
     args = parser.parse_args()
-    config = json.load(open(args.config_path))
+    config = load_json(args.config_path)
 
-    img_path = config["sample"]["img_path"]
-    lab_path = config["sample"]["lab_path"]
+    img_paths = load_text(config["sample"]["img_path"])
+    lab_paths = load_text(config["sample"]["lab_path"])
     samples = list()
 
-    image = Image.open(img_path).convert('RGB')
-    label = np.array(Image.open(lab_path),dtype=np.float32)
-    
-    transform = build_transform(cfg)
-    if transform is not None:
-        image, label = transform(image, label)
-    image = image.unsqueeze(0)
+    transform = build_transform(config["name"], cfg)
+    big_preds = [None] * len(config["weights"])
+    big_label = None
+    for img_path, lab_path in zip(img_paths, lab_paths):
+        res = list()
 
-    img = Image.open(img_path).convert('RGB')
-    lab = Image.open(lab_path).convert('RGB')
-    samples.append(img)
-    samples.append(lab)
+        image = Image.open(img_path).convert('RGB')
+        label = np.array(Image.open(lab_path), dtype=np.float32)
+        if transform is not None:
+            image, label = transform(image, label)
+        image = image.unsqueeze(0)
+
+        img = Image.open(img_path).convert('RGB')
+        lab = Image.open(lab_path)
+        res.append(img)
+        res.append(lab.convert('RGB'))
+
+        h, w = np.array(lab).shape
+        tmp = np.array(lab).reshape(h*w)
+        if big_label is None:
+            big_label = tmp
+        else:
+            big_label = np.concatenate((big_label, tmp), axis=0)
+
+        for idx, (k, resume) in enumerate(config["weights"].items()):
+            output = get_output(config["name"], resume, image, label)
+            pred = get_pred(output)
+            result = get_color_pallete(pred, config["pallete"])
+
+            h, w, c = output.shape
+            tmp = output.reshape(h*w, c)
+            if big_preds[idx] is None:
+                big_preds[idx] = tmp
+            else:
+                big_preds[idx] = np.concatenate((big_preds[idx], tmp), axis=0)
+            res.append(result)
+        
+        samples.append(res)
     
     if config["tensorboard"]:
-        label = np.array(Image.open(bin_lab_path))
-        label_copy = np.ones(label.shape, dtype=np.int32) * 255
-        for k, v in config["id_to_trainid"].items():
-            label_copy[label == int(k)] = v
-        # label = Image.fromarray(label_copy)
+        for idx, lab_path in enumerate(lab_paths):
+            name = os.path.basename(lab_path)[:-4]
+            label = np.array(Image.open(lab_path))
+            label_copy = np.ones(label.shape, dtype=np.int32) * 255
+            for k, v in config["id_to_trainid"].items():
+                label_copy[label == int(k)] = v
+            # label = Image.fromarray(label_copy)
 
-        for k, resume in config["weights"].items():
-            writer = SummaryWriter(os.path.join(config["root"], k))
-            pred = get_pred(resume)
-            res = get_color_pallete(pred)
-            add_curve(writer, pred, label_copy)
+            samples[idx] = convert_pilimgs2tensor(samples[idx])
+            img_grid = torchvision.utils.make_grid(samples[idx])
+            summary_writer = SummaryWriter(os.path.join(config["root"], config["name"], 'summary'))
+            summary_writer.add_image(str(idx) + '.'+ name, img_grid)   
+        summary_writer.close()
+
+        for key, big_pred in zip(config["weights"].keys(), big_preds):
+            writer = SummaryWriter(os.path.join(config["root"], config["name"], key))
+            dump_pr_curve(big_pred, big_label, config["trainid2name"], writer)
             writer.close()
-            samples.append(res)
-
-        samples = convert_pilimgs2tensor(samples)
-        img_grid = torchvision.utils.make_grid(samples)
-        writer = SummaryWriter(os.path.join(config["root"], 'summary'))
-        writer.add_image('5_fada_images', img_grid)                
-        writer.close()
 
     else:
         for k, resume in config["weights"].items():
             pred = get_pred(resume)
-            res = get_color_pallete(pred)
+            res = get_color_pallete(pred, config["pallete"])
             samples.append(res)
         
         n_rows = 1
@@ -283,4 +240,3 @@ if __name__ == "__main__":
         for img, ax in zip(samples, axs):
             ax.imshow(img)
         plt.show()
-    

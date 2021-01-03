@@ -24,7 +24,7 @@ def test(cfg):
     classifier.to(device)
 
     logger.info("Loading checkpoint from {}".format(cfg.resume))
-    checkpoint = torch.load(cfg.resume, map_location=torch.device('cpu'))
+    checkpoint = torch.load(cfg.resume, map_location=device)
     feature_extractor_weights = strip_prefix_if_present(checkpoint['feature_extractor'], 'module.')
     feature_extractor.load_state_dict(feature_extractor_weights)
     classifier_weights = strip_prefix_if_present(checkpoint['classifier'], 'module.')

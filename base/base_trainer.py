@@ -1,22 +1,34 @@
-#!/usr/bin/env python
-# coding: utf-8
-
 import torch
 import logging
 import os
-from model import FOTSLoss
 import time
+import sys 
+
+def setup_logger(name, save_dir, distributed_rank, filename="log.txt"):
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[
+            logging.FileHandler(os.path.join(save_dir, name + ".txt")),
+            logging.StreamHandler()
+        ]
+    )    
+    #Creating an object 
+    logger=logging.getLogger(name) 
+    return logger
 
 class BaseTrainer:
-    def __init__(self, config, model, resume_path):
-        self.logger = logging.getLogger(self.__class__.__name__)
-        self.model = model
-        self.config = config
-        self.optimizer = self.model.optimize(config['optimizer_type'], config['optimizer'])
-        self.epochs = config['trainer']['epochs']
-        self.val_interval = self.config["validation"]["val_interval"]
-        self.start_epoch = 1
-        self.checkpoint_dir = config["trainer"]["save_dir"]
+    def __init__(self, name, cfg, train_loader, local_rank):
+        self.cfg = cfg
+        self.logger = setup_logger(name, cfg.OUTPUT_DIR, local_rank)
+        self.train_loader = train_loader
+        self.local_rank = local_rank
+
+
+        # self.epochs = config['trainer']['epochs']
+        # self.val_interval = self.config["validation"]["val_interval"]
+        # self.start_epoch = 1
+        # self.checkpoint_dir = config["trainer"]["save_dir"]
 
         # if torch.cuda.is_available():
         #     if config['cuda']:
@@ -45,11 +57,9 @@ class BaseTrainer:
             device = 'cpu'
 
         self.device = torch.device(device)
-        self.loss = FOTSLoss(config, device)
-        self.model.to(self.device)
-        if resume_path:
-            print('resume-------------')
-            self._load_checkpoint(resume_path)
+        # if resume_path:
+        #     print('resume-------------')
+        #     self._load_checkpoint(resume_path)
         
     def _train_epoch(self, epoch):
         raise NotImplementedError
@@ -140,6 +150,3 @@ class BaseTrainer:
                         state[k] = v.cuda(torch.device('cuda'))
         self.log = checkpoint['logger']
         self.logger.info("Checkpoint '{}' (epoch {}) loaded".format(resume_path, self.start_epoch))
-
-
-

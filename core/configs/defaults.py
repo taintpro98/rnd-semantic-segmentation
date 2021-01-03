@@ -59,7 +59,7 @@ _C.SOLVER.WEIGHT_DECAY_BIAS = 0
 
 _C.SOLVER.GAMMA = 0.1
 
-_C.SOLVER.CHECKPOINT_PERIOD = 2000
+_C.SOLVER.CHECKPOINT_PERIOD = 1 #2000
 
 # Number of images per batch
 # This is global, so if we have 8 GPUs and BATCH_SIZE = 16, each GPU will
