@@ -1,6 +1,8 @@
 import json
 import numpy as np
 from PIL import Image
+import logging
+import os 
 
 from collections import defaultdict
 from collections import deque
@@ -166,3 +168,16 @@ def dump_text(path, data):
     with open(path, 'w') as ref:
         for line in data:
             ref.write("%s\n" % line)
+
+def setup_logger(name, save_dir, distributed_rank, filename="log.txt"):
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[
+            logging.FileHandler(os.path.join(save_dir, name + ".txt")),
+            logging.StreamHandler()
+        ]
+    )    
+    #Creating an object 
+    logger=logging.getLogger(name) 
+    return logger

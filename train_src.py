@@ -207,7 +207,7 @@ from core.datasets.build import build_dataset
 #         _train_epoch(train_loader, model, optimizer, epoch)
 
 def main(name, cfg, local_rank):
-    src_train_data = build_dataset(cfg, mode='train', is_source=True)
+    src_train_data = build_dataset(cfg, name, mode='train', is_source=True)
     train_loader = torch.utils.data.DataLoader(
         src_train_data, 
         batch_size=cfg.SOLVER.BATCH_SIZE, 

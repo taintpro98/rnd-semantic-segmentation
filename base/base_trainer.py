@@ -1,21 +1,8 @@
 import torch
-import logging
 import os
 import time
 import sys 
-
-def setup_logger(name, save_dir, distributed_rank, filename="log.txt"):
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(message)s",
-        handlers=[
-            logging.FileHandler(os.path.join(save_dir, name + ".txt")),
-            logging.StreamHandler()
-        ]
-    )    
-    #Creating an object 
-    logger=logging.getLogger(name) 
-    return logger
+from core.utils.utility import setup_logger
 
 class BaseTrainer:
     def __init__(self, name, cfg, train_loader, local_rank):
@@ -23,33 +10,16 @@ class BaseTrainer:
         self.logger = setup_logger(name, cfg.OUTPUT_DIR, local_rank)
         self.train_loader = train_loader
         self.local_rank = local_rank
-
-
-        # self.epochs = config['trainer']['epochs']
-        # self.val_interval = self.config["validation"]["val_interval"]
-        # self.start_epoch = 1
-        # self.checkpoint_dir = config["trainer"]["save_dir"]
-
-        # if torch.cuda.is_available():
-        #     if config['cuda']:
-        #         self.with_cuda = True
-        #         self.gpus = {i: item for i, item in enumerate(self.config['gpus'])}
-        #         device = 'cuda'
-        #         if torch.cuda.device_count() > 1 and len(self.gpus) > 1:
-        #             self.model.parallelize()
-        #         torch.cuda.empty_cache()
-        #     else:
-        #         self.with_cuda = False
-        #         device = 'cpu'
-        # else:
-        #     self.logger.warning('Warning: There\'s no CUDA support on this machine, '
-        #                         'training is performed on CPU.')
-        #     self.with_cuda = False
-        #     device = 'cpu'
+        self.start_epoch = 1
+        self.distributed = False
+        # self.num_gpus = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
 
         if torch.cuda.is_available():
             self.with_cuda = True
             device = 'cuda'
+            if torch.cuda.device_count() > 1:
+                self.distributed = True
+            torch.cuda.empty_cache()
         else:
             self.logger.warning('Warning: There\'s no CUDA support on this machine, '
                                 'training is performed on CPU.')
@@ -57,14 +27,30 @@ class BaseTrainer:
             device = 'cpu'
 
         self.device = torch.device(device)
-        # if resume_path:
-        #     print('resume-------------')
-        #     self._load_checkpoint(resume_path)
-        
+
+        self.init_params()
+
+        if cfg.resume:
+            self.logger.info("Loading checkpoint from {}".format(self.cfg.resume))
+            self._load_checkpoint()
+
+        # self.val_interval = self.config["validation"]["val_interval"]
+        # self.start_epoch = 1
+        # self.checkpoint_dir = config["trainer"]["save_dir"]
+
+    def init_params(self):
+        raise NotImplementedError
+
     def _train_epoch(self, epoch):
         raise NotImplementedError
         
     def _val_epoch(self, epoch):
+        raise NotImplementedError
+
+    def _save_checkpoint(self, epoch, save_path):
+        raise NotImplementedError
+        
+    def _load_checkpoint(self):
         raise NotImplementedError
         
     # def _log_memory_useage(self):
@@ -109,44 +95,3 @@ class BaseTrainer:
                     self.log = {**train_log, **val_log}
                     self._save_checkpoint(epoch)
                     best_score = val_log['val_f1']
-
-                
-    def _save_checkpoint(self, epoch, save_best=False):
-        """
-        Saving checkpoints
-
-        :param epoch: current epoch number
-        :param log: logging information of the epoch
-        :param save_best: if True, rename the saved checkpoint to 'model_best.pth.tar'
-        """
-        arch = type(self.model).__name__
-        state = {
-            'arch': arch,
-            'epoch': epoch,
-            'logger': self.log,
-            'state_dict': self.model.state_dict(),
-            'optimizer': self.optimizer.state_dict(),
-            'config': self.config
-        }
-        filename = os.path.join(self.checkpoint_dir, 'checkpoint-epoch{:03d}-loss-{:.4f}.pth.tar'.format(epoch, self.log['loss']))
-        torch.save(state, filename)
-        if save_best:
-            os.rename(filename, os.path.join(self.checkpoint_dir, 'model_best.pth.tar'))
-            self.logger.info("Saving current best: {} ...".format('model_best.pth.tar'))
-        else:
-            self.logger.info("Saving checkpoint: {} ...".format(filename))
-        
-        
-    def _load_checkpoint(self, resume_path):
-        self.logger.info("Loading checkpoint: {} ...".format(resume_path))
-        checkpoint = torch.load(resume_path)
-        self.start_epoch = checkpoint['epoch'] + 1
-        self.model.load_state_dict(checkpoint['state_dict'])
-        self.optimizer.load_state_dict(checkpoint['optimizer'])
-        if self.with_cuda:
-            for state in self.optimizer.state.values():
-                for k, v in state.items():
-                    if isinstance(v, torch.Tensor):
-                        state[k] = v.cuda(torch.device('cuda'))
-        self.log = checkpoint['logger']
-        self.logger.info("Checkpoint '{}' (epoch {}) loaded".format(resume_path, self.start_epoch))

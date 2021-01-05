@@ -8,11 +8,13 @@ class PolypDataset(data.Dataset):
     """
     dataloader for polyp segmentation tasks
     """
-    def __init__(self, data_root, mode="train", cross_val=0, trainsize=352):
+    def __init__(self, data_root, mode="train", cross_val=0, trainsize=352, transform=None):
         super(PolypDataset, self).__init__()
         self.trainsize = trainsize
         self.data_root = data_root        
         self.image_paths = []
+        self.transform = transform
+        self.mode = mode
 
         kfolds = glob(data_root + "/*/")
         if mode == "train":
@@ -24,14 +26,8 @@ class PolypDataset(data.Dataset):
                 if str(cross_val) in os.path.basename(kfold_path[:-1]):
                     self.image_paths += [img_path for img_path in glob(os.path.join(kfold_path, 'images') + '/*.png')]
 
-        self.img_transform = transforms.Compose([
-            transforms.Resize((self.trainsize, self.trainsize)),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406],
-                                 [0.229, 0.224, 0.225])])
-        self.gt_transform = transforms.Compose([
-            transforms.Resize((self.trainsize, self.trainsize)),
-            transforms.ToTensor()])
+    def __len__(self):
+        return len(self.image_paths)    
 
     def __getitem__(self, index):
         img_name = os.path.basename(self.image_paths[index])
@@ -45,8 +41,7 @@ class PolypDataset(data.Dataset):
         image = self.rgb_loader(datafile["img"])
         gt = self.binary_loader(datafile["label"])
 
-        image = self.img_transform(image)
-        gt = self.gt_transform(gt)
+        image, gt = self._transform(image, gt)
         name = datafile["name"]
         return image, gt, name
 
@@ -71,5 +66,26 @@ class PolypDataset(data.Dataset):
         else:
             return img, gt
 
-    def __len__(self):
-        return len(self.image_paths)
+    def _transform(self, image, label):
+        if self.mode == "train":
+            img_transform = transforms.Compose([
+                transforms.Resize((self.trainsize, self.trainsize)),
+                transforms.ToTensor(),
+                transforms.Normalize([0.485, 0.456, 0.406],
+                                    [0.229, 0.224, 0.225])
+            ])
+            gt_transform = transforms.Compose([
+                transforms.Resize((self.trainsize, self.trainsize)),
+                transforms.ToTensor()
+            ])
+            image = img_transform(image)
+            gt = gt_transform(gt)
+        else:
+            img_transform = transforms.Compose([
+                transforms.Resize((w, h)),
+                transforms.ToTensor(),
+                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
+            image = img_transform(image)
+            gt = np.array(gt.convert('L'))
+            gt = torch.from_numpy(gt).unsqueeze(0)
+        return image, label

@@ -32,10 +32,6 @@ from core.utils.utility import mkdir, AverageMeter, intersectionAndUnionGPU, get
 from core.models.classifiers.pranet.PraNet_Res2Net import PraNet
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-config_file = "configs/pranet_src_polyp.yaml"
-cfg.merge_from_file(config_file)
-# cfg.merge_from_list(None)
-cfg.freeze()
 
 # COLORS = ('white','red', 'blue', 'yellow', 'magenta', 
 #             'green', 'indigo', 'darkorange', 'cyan', 'pink', 
@@ -93,7 +89,7 @@ def build_transform(name, cfg):
             return image, label
     return trans
 
-def build_model(name, resume):
+def build_model(cfg, name, resume):
     if name == "aspp":
         feature_extractor = build_feature_extractor(cfg)
         feature_extractor.to(device)
@@ -123,14 +119,14 @@ def build_model(name, resume):
 #     label = output.squeeze(2)
 #     return label2rgb(label)
 
-def get_output(name, resume, image, label):
+def get_output(cfg, name, resume, image, label):
     """
 
         :return: numpy array H x W x C
     """
     image = image.to(device)
     if name == "aspp":
-        feature_extractor, classifier = build_model(name, resume)
+        feature_extractor, classifier = build_model(cfg, name, resume)
         output = inference(feature_extractor, classifier, image, label, flip=False) # tensor (B=1) x C x H x W    
         # pred = output.max(1)[1]
         output = output.cpu().numpy()
@@ -140,8 +136,8 @@ def get_output(name, resume, image, label):
     elif name == "pranet":
         gt = np.asarray(label, np.float32)
         gt /= (gt.max() + 1e-8)
-        model = build_model(name, resume)
-        
+        model = build_model(cfg, name, resume)
+
         res5, res4, res3, res2 = model(image)
         output = res2
         output = F.upsample(output, size=gt.shape, mode='bilinear', align_corners=False)
@@ -160,9 +156,24 @@ def get_pred(output):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("-cfg",
+        "--config-file",
+        default="",
+        metavar="FILE",
+        help="path to config file",
+        type=str,
+    )
     parser.add_argument('-c', '--config_path', default='configs/demo_config.json', help='path to config')
+
     args = parser.parse_args()
     config = load_json(args.config_path)
+
+    config_file = "configs/pranet_src_polyp.yaml"
+    cfg.merge_from_file(args.config_file)
+    # cfg.merge_from_list(None)
+    cfg.freeze()
+
+    print("Loaded configuration file {}".format(args.config_file))
 
     img_paths = load_text(config["sample"]["img_path"])
     lab_paths = load_text(config["sample"]["lab_path"])
@@ -193,7 +204,7 @@ if __name__ == "__main__":
             big_label = np.concatenate((big_label, tmp), axis=0)
 
         for idx, (k, resume) in enumerate(config["weights"].items()):
-            output = get_output(config["name"], resume, image, label)
+            output = get_output(cfg, config["name"], resume, image, label)
             pred = get_pred(output)
             result = get_color_pallete(pred, config["pallete"])
 

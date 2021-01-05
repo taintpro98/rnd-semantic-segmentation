@@ -7,7 +7,7 @@ from .kvasir import KvasirDataSet
 from .polyp import PolypDataset
 
 class DatasetCatalog(object):
-    DATASET_DIR = "datasets"
+    DATASET_DIR = "../FADA/datasets"
     DATASETS = {
         "gta5_train": {
             "data_dir": "gta5",
@@ -92,5 +92,5 @@ class DatasetCatalog(object):
                 root=os.path.join(data_dir, attrs["data_dir"]),
                 data_list=os.path.join(data_dir, attrs["data_list"]),
             )
-            return PolypDataset(args["root"], mode=mode, cross_val=cross_val, trainsize=cfg.INPUT.TRAINSIZE)
+            return PolypDataset(args["root"], mode=mode, cross_val=cross_val, trainsize=cfg.INPUT.TRAINSIZE, transform=transform)
         raise RuntimeError("Dataset not available: {}".format(name))

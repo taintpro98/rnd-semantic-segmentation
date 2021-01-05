@@ -12,7 +12,12 @@ from core.utils.utils import AvgMeter, clip_gradient
 class PraNetTrainer(BaseTrainer):
     def __init__(self, name, cfg, train_loader, local_rank):
         super(PraNetTrainer, self).__init__(name, cfg, train_loader, local_rank)
+        
+    def init_params(self):
         self.trainsize = self.cfg.INPUT.TRAINSIZE
+        self.model = PraNet().cuda()
+        params = self.model.parameters()
+        self.optimizer = torch.optim.Adam(params, self.cfg.SOLVER.BASE_LR)
 
     def structure_loss(self, pred, mask):
         weit = 1 + 5*torch.abs(F.avg_pool2d(mask, kernel_size=31, stride=1, padding=15) - mask)
@@ -25,13 +30,13 @@ class PraNetTrainer(BaseTrainer):
         wiou = 1 - (inter + 1)/(union - inter+1)
         return (wbce + wiou).mean()
 
-    def _train_epoch(self, model, optimizer, epoch):
+    def _train_epoch(self, epoch):
         # ---- multi-scale training ----
         size_rates = [0.75, 1, 1.25]
         loss_record2, loss_record3, loss_record4, loss_record5 = AvgMeter(), AvgMeter(), AvgMeter(), AvgMeter()
         for i, pack in enumerate(self.train_loader):
             for rate in size_rates:
-                optimizer.zero_grad()
+                self.optimizer.zero_grad()
                 # ---- data prepare ----
                 images, gts, _ = pack
                 images = Variable(images).cuda()
@@ -42,7 +47,7 @@ class PraNetTrainer(BaseTrainer):
                     images = F.upsample(images, size=(self.trainsize, self.trainsize), mode='bilinear', align_corners=True)
                     gts = F.upsample(gts, size=(self.trainsize, self.trainsize), mode='bilinear', align_corners=True)
                 # ---- forward ----
-                lateral_map_5, lateral_map_4, lateral_map_3, lateral_map_2 = model(images)
+                lateral_map_5, lateral_map_4, lateral_map_3, lateral_map_2 = self.model(images)
                 # ---- loss function ----
                 loss5 = self.structure_loss(lateral_map_5, gts)
                 loss4 = self.structure_loss(lateral_map_4, gts)
@@ -51,8 +56,8 @@ class PraNetTrainer(BaseTrainer):
                 loss = loss2 + loss3 + loss4 + loss5    # TODO: try different weights for loss
                 # ---- backward ----
                 loss.backward()
-                clip_gradient(optimizer, 0.5)
-                optimizer.step()
+                clip_gradient(self.optimizer, 0.5)
+                self.optimizer.step()
                 # ---- recording loss ----
                 if rate == 1:
                     loss_record2.update(loss2.data, self.cfg.SOLVER.BATCH_SIZE)
@@ -67,18 +72,30 @@ class PraNetTrainer(BaseTrainer):
                              loss_record2.show(), loss_record3.show(), loss_record4.show(), loss_record5.show()))
         save_path = self.cfg.OUTPUT_DIR
         os.makedirs(save_path, exist_ok=True)
-        if (epoch+1) % cfg.SOLVER.CHECKPOINT_PERIOD == 0:
-            torch.save(model.state_dict(), save_path + 'PraNet-%d.pth' % epoch)
-            self.logger.info('[Saving Snapshot:]', save_path + 'PraNet-%d.pth'% epoch)
+        if epoch % self.cfg.SOLVER.CHECKPOINT_PERIOD == 0:
+            self._save_checkpoint(epoch, save_path + 'PraNet-%d.pth' % epoch)
+            self.logger.info('[Saving Snapshot:] ' + save_path + 'PraNet-{}.pth'.format(epoch))
 
+    def _save_checkpoint(self, epoch, save_path):
+        checkpoint = {
+            'epoch': epoch, 
+            'model': self.model.state_dict(),
+            'optimizer': self.optimizer.state_dict()
+        }
+        torch.save(checkpoint, save_path)
+
+    def _load_checkpoint(self):
+        self.logger.info("Loading checkpoint from {}".format(self.cfg.resume))
+        self.checkpoint = torch.load(self.cfg.resume, map_location=self.device)
+        self.model.load_state_dict(self.checkpoint['model'])
+        if "optimizer" in self.checkpoint:
+            self.logger.info("Loading optimizer from {}".format(self.cfg.resume))
+            self.optimizer.load(self.checkpoint['optimizer'])
+        if "epoch" in self.checkpoint:
+            self.start_epoch = self.checkpoint['epoch']
 
     def train(self):
-        model = PraNet().cuda()
-        model.train()
-
-        params = model.parameters()
-        optimizer = torch.optim.Adam(params, self.cfg.SOLVER.BASE_LR)
-
+        self.model.train()
         self.logger.info("#"*20 + " Start Training " + "#"*20)
-        for epoch in range(self.cfg.SOLVER.EPOCHS):
-            self._train_epoch(model, optimizer, epoch)
+        for epoch in range(self.start_epoch, self.cfg.SOLVER.EPOCHS+1):
+            self._train_epoch(epoch)
