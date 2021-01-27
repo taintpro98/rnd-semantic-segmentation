@@ -1,15 +1,19 @@
 import os
 from PIL import Image
+from glob import glob
+import numpy as np
+
+import torch
 import torch.utils.data as data
 import torchvision.transforms as transforms
-from glob import glob
 
 class PolypDataset(data.Dataset):
     """
     dataloader for polyp segmentation tasks
     """
-    def __init__(self, data_root, mode="train", cross_val=0, trainsize=352, transform=None):
+    def __init__(self, cfg, data_root, mode="train", cross_val=0, trainsize=352, transform=None):
         super(PolypDataset, self).__init__()
+        self.cfg = cfg
         self.trainsize = trainsize
         self.data_root = data_root        
         self.image_paths = []
@@ -67,6 +71,7 @@ class PolypDataset(data.Dataset):
             return img, gt
 
     def _transform(self, image, label):
+        w, h = self.cfg.INPUT.INPUT_SIZE_TEST
         if self.mode == "train":
             img_transform = transforms.Compose([
                 transforms.Resize((self.trainsize, self.trainsize)),
@@ -79,13 +84,13 @@ class PolypDataset(data.Dataset):
                 transforms.ToTensor()
             ])
             image = img_transform(image)
-            gt = gt_transform(gt)
+            label = gt_transform(label)
         else:
             img_transform = transforms.Compose([
                 transforms.Resize((w, h)),
                 transforms.ToTensor(),
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
             image = img_transform(image)
-            gt = np.array(gt.convert('L'))
-            gt = torch.from_numpy(gt).unsqueeze(0)
+            label = np.array(label.convert('L'))
+            label = torch.from_numpy(label).unsqueeze(0)
         return image, label

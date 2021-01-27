@@ -34,10 +34,6 @@ class BaseTrainer:
             self.logger.info("Loading checkpoint from {}".format(self.cfg.resume))
             self._load_checkpoint()
 
-        # self.val_interval = self.config["validation"]["val_interval"]
-        # self.start_epoch = 1
-        # self.checkpoint_dir = config["trainer"]["save_dir"]
-
     def init_params(self):
         raise NotImplementedError
 

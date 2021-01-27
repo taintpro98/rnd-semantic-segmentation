@@ -16,7 +16,7 @@ def test(cfg, config):
     logger = setup_logger(name, cfg.OUTPUT_DIR, None, config['filename'])
     logger.info("#"*20 + " Start Testing " + "#"*20)
 
-    test_data = build_dataset(cfg, name, mode='test', is_source=False, epochwise=False)
+    test_data = build_dataset(cfg, mode='test', is_source=False, epochwise=False)
     test_loader = torch.utils.data.DataLoader(test_data, batch_size=cfg.TEST.BATCH_SIZE, shuffle=False, num_workers=4, pin_memory=True, sampler=None)
 
     if name == "aspp":

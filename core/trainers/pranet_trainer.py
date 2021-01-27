@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from base.base_trainer import BaseTrainer
 from core.models.classifiers.pranet.PraNet_Res2Net import PraNet
 from core.utils.utils import AvgMeter, clip_gradient
+from core.utils.adapt_lr import GradualWarmupScheduler
 
 class PraNetTrainer(BaseTrainer):
     def __init__(self, name, cfg, train_loader, local_rank):
@@ -17,7 +18,7 @@ class PraNetTrainer(BaseTrainer):
         self.trainsize = self.cfg.INPUT.TRAINSIZE
         self.model = PraNet().cuda()
         params = self.model.parameters()
-        self.optimizer = torch.optim.Adam(params, self.cfg.SOLVER.BASE_LR)
+        self.optimizer = torch.optim.Adam(params, self.cfg.SOLVER.BASE_LR/8)
 
     def structure_loss(self, pred, mask):
         weit = 1 + 5*torch.abs(F.avg_pool2d(mask, kernel_size=31, stride=1, padding=15) - mask)
@@ -67,9 +68,9 @@ class PraNetTrainer(BaseTrainer):
             # ---- train visualization ----
             if i % 20 == 0 or i == len(self.train_loader):
                 self.logger.info('{} Epoch [{:03d}/{:03d}], Step [{:04d}/{:04d}], '
-                      '[lateral-2: {:.4f}, lateral-3: {:0.4f}, lateral-4: {:0.4f}, lateral-5: {:0.4f}]'.
+                      '[lateral-2: {:.4f}, lateral-3: {:0.4f}, lateral-4: {:0.4f}, lateral-5: {:0.4f}, learning_rate: {:0.4f}]'.
                     format(datetime.now(), epoch, self.cfg.SOLVER.EPOCHS, i, len(self.train_loader),
-                             loss_record2.show(), loss_record3.show(), loss_record4.show(), loss_record5.show()))
+                             loss_record2.show(), loss_record3.show(), loss_record4.show(), loss_record5.show(), self.optimizer.param_groups[0]['lr'] ))
         save_path = self.cfg.OUTPUT_DIR
         os.makedirs(save_path, exist_ok=True)
         if epoch % self.cfg.SOLVER.CHECKPOINT_PERIOD == 0:
@@ -90,12 +91,16 @@ class PraNetTrainer(BaseTrainer):
         self.model.load_state_dict(self.checkpoint['model'])
         if "optimizer" in self.checkpoint:
             self.logger.info("Loading optimizer from {}".format(self.cfg.resume))
-            self.optimizer.load(self.checkpoint['optimizer'])
+            self.optimizer.load_state_dict(self.checkpoint['optimizer'])
         if "epoch" in self.checkpoint:
-            self.start_epoch = self.checkpoint['epoch']
+            self.start_epoch = self.checkpoint['epoch'] + 1
 
     def train(self):
         self.model.train()
         self.logger.info("#"*20 + " Start Training " + "#"*20)
+        cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, 100, eta_min=0, last_epoch=-1)
+        scheduler = GradualWarmupScheduler(self.optimizer, multiplier=8, total_epoch=5, after_scheduler=cosine_scheduler)
         for epoch in range(self.start_epoch, self.cfg.SOLVER.EPOCHS+1):
+            # adjust_lr(self.optimizer, self.cfg.SOLVER.BASE_LR, epoch, self.cfg.SOLVER.DECAY_RATE, self.cfg.SOLVER.DECAY_EPOCH)
             self._train_epoch(epoch)
+            scheduler.step()

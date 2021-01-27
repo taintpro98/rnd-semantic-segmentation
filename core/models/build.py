@@ -1,5 +1,6 @@
 from core.models.feature_extractor import resnet_feature_extractor
 from core.models.classifiers.aspp.classifier import ASPP_Classifier_V2
+from .discriminator import * 
 
 def build_model(cfg):
     model_name, backbone_name = cfg.MODEL.NAME.split('_')
@@ -28,6 +29,20 @@ def build_classifier(cfg):
     else:
         raise NotImplementedError
     return classifier
+
+def build_adversarial_discriminator(cfg, num_features=None, mid_nc=256):
+    _, backbone_name = cfg.MODEL.NAME.split('_')
+    if backbone_name.startswith('vgg'):
+        if num_features is None:
+            num_features = 1024
+        model_D = PixelDiscriminator(num_features, mid_nc, num_classes=cfg.MODEL.NUM_CLASSES)
+    elif backbone_name.startswith('resnet'):
+        if num_features is None:
+            num_features = 2048
+        model_D = PixelDiscriminator(num_features, mid_nc, num_classes=cfg.MODEL.NUM_CLASSES)
+    else:
+        raise NotImplementedError
+    return model_D
 
 def adjust_learning_rate(method, base_lr, iters, max_iters, power):
     if method=='poly':

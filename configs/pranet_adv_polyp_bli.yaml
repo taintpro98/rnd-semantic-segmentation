@@ -1,0 +1,25 @@
+MODEL:
+  NAME: "deeplab_resnet101"
+  WEIGHTS: "https://download.pytorch.org/models/resnet101-5d3b4d8f.pth"
+  FREEZE_BN: True
+DATASETS:
+  SOURCE_TRAIN: "polyp_train"
+  TARGET_TRAIN: "bli_train"
+  TEST: "cityscapes_val"
+INPUT:
+  BRIGHTNESS: 0.5
+  CONTRAST: 0.5
+  SATURATION: 0.5
+  HUE: 0.2
+  TRAINSIZE: 352
+  INPUT_SIZE_TEST: [352, 352]
+#   PIXEL_MEAN: [103.939, 116.779, 123.68]
+#   PIXEL_STD: [1., 1., 1.]
+#   TO_BGR255: True
+SOLVER:
+  BASE_LR: 1e-4
+  BATCH_SIZE: 8
+  EPOCHS: 20
+  CHECKPOINT_PERIOD: 1
+  DECAY_RATE: 0.1
+  DECAY_EPOCH: 5

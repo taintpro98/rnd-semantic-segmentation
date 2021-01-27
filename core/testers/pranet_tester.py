@@ -19,7 +19,7 @@ class PranetTester:
     def _load_checkpoint(self):
         self.logger.info("Loading checkpoint from {}".format(self.cfg.resume))
         checkpoint = torch.load(self.cfg.resume, map_location=self.device)
-        self.model.load_state_dict(checkpoint)
+        self.model.load_state_dict(checkpoint["model"])
 
     def test(self):
         self.model.eval()
@@ -39,6 +39,7 @@ class PranetTester:
             # y = np.asarray(y, np.float32)
             # y /= (y.max() + 1e-8)
             _, _, h, w = y.size()
+            y = y.squeeze(1)
 
             res5, res4, res3, res2 = self.model(x)
             output = res2
@@ -50,12 +51,13 @@ class PranetTester:
             output = np.stack([1-output, output], axis=3) # create a B x H x W x 2 numpy array with 0 background and 1 polyp
             output = torch.from_numpy(output.transpose(0, 3, 1, 2)) # tensor B x 2 x H x W
             pred = output.max(1)[1] # int tensor B, H, W
+            pred = pred.cuda(non_blocking=True)
 
             intersection, union, target, res = intersectionAndUnionGPU(pred, y, self.cfg.MODEL.NUM_CLASSES, self.cfg.INPUT.IGNORE_LABEL)
             intersection, union, target, res = intersection.cpu().numpy(), union.cpu().numpy(), target.cpu().numpy(), res.cpu().numpy()
 
             iou = intersection/(union + 1e-10)
-            f1 = 2*intersection/(target + union + 1e-10)
+            f1 = 2*intersection/(target + res + 1e-10)
 
             count += 1
             intersection_sum += intersection
@@ -68,7 +70,7 @@ class PranetTester:
         macro_f1 = f1_sum/float(count)
         macro_iou = iou_sum/float(count)
 
-        micro_f1 = 2*intersection_sum/(target_sum + union_sum + 1e-10)
+        micro_f1 = 2*intersection_sum/(target_sum + res_sum + 1e-10)
         micro_iou = intersection_sum/(union_sum + 1e-10)
 
         mIoU = np.mean(macro_iou)

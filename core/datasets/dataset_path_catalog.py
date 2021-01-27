@@ -5,6 +5,7 @@ import os
 # from .gta5 import GTA5DataSet
 from .kvasir import KvasirDataSet
 from .polyp import PolypDataset
+from .bli import BLIDataset
 
 class DatasetCatalog(object):
     DATASET_DIR = "../FADA/datasets"
@@ -44,6 +45,10 @@ class DatasetCatalog(object):
         },
         "polyp_val": {
             "data_dir": "kvasir",
+            "data_list": ""
+        },
+        "bli_train": {
+            "data_dir": "BLI",
             "data_list": ""
         }
     }
@@ -92,5 +97,14 @@ class DatasetCatalog(object):
                 root=os.path.join(data_dir, attrs["data_dir"]),
                 data_list=os.path.join(data_dir, attrs["data_list"]),
             )
-            return PolypDataset(args["root"], mode=mode, cross_val=cross_val, trainsize=cfg.INPUT.TRAINSIZE, transform=transform)
+            return PolypDataset(cfg, args["root"], mode=mode, cross_val=cross_val, trainsize=cfg.INPUT.TRAINSIZE, transform=transform)
+        elif "bli" in name:
+            data_dir = DatasetCatalog.DATASET_DIR
+            attrs = DatasetCatalog.DATASETS[name]
+            args = dict(
+                root=os.path.join(data_dir, attrs["data_dir"]),
+                data_list=os.path.join(data_dir, attrs["data_list"]),
+            )
+            return BLIDataset(args["root"], num_classes=num_classes, mode=mode, transform=transform)
+
         raise RuntimeError("Dataset not available: {}".format(name))
