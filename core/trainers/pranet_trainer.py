@@ -68,7 +68,7 @@ class PraNetTrainer(BaseTrainer):
             # ---- train visualization ----
             if i % 20 == 0 or i == len(self.train_loader):
                 self.logger.info('{} Epoch [{:03d}/{:03d}], Step [{:04d}/{:04d}], '
-                      '[lateral-2: {:.4f}, lateral-3: {:0.4f}, lateral-4: {:0.4f}, lateral-5: {:0.4f}, learning_rate: {:0.4f}]'.
+                      '[lateral-2: {:.4f}, lateral-3: {:0.4f}, lateral-4: {:0.4f}, lateral-5: {:0.4f}, learning_rate: {:0.8f}]'.
                     format(datetime.now(), epoch, self.cfg.SOLVER.EPOCHS, i, len(self.train_loader),
                              loss_record2.show(), loss_record3.show(), loss_record4.show(), loss_record5.show(), self.optimizer.param_groups[0]['lr'] ))
         save_path = self.cfg.OUTPUT_DIR

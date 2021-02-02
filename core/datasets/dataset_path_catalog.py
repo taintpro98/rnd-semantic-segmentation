@@ -2,7 +2,7 @@ import os
 # from .cityscapes import cityscapesDataSet
 # from .cityscapes_self_distill import cityscapesSelfDistillDataSet
 # from .synthia import synthiaDataSet
-# from .gta5 import GTA5DataSet
+from .gta5 import GTA5DataSet
 from .kvasir import KvasirDataSet
 from .polyp import PolypDataset
 from .bli import BLIDataset
@@ -62,7 +62,7 @@ class DatasetCatalog(object):
                 root=os.path.join(data_dir, attrs["data_dir"]),
                 data_list=os.path.join(data_dir, attrs["data_list"]),
             )
-            return GTA5DataSet(args["root"], args["data_list"], max_iters=max_iters, num_classes=num_classes, split=mode, transform=transform)
+            return GTA5DataSet(args["root"], num_classes=num_classes, mode=mode, transform=transform)
         elif "synthia" in name:
             data_dir = DatasetCatalog.DATASET_DIR
             attrs = DatasetCatalog.DATASETS[name]

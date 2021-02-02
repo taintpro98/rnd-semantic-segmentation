@@ -169,7 +169,7 @@ def dump_text(path, data):
         for line in data:
             ref.write("%s\n" % line)
 
-def setup_logger(name, save_dir, distributed_rank, filename="log.txt"):
+def setup_logger(name, save_dir, distributed_rank):
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",

@@ -1,7 +1,6 @@
 {
     "root": "runs",
-    "name": "pranet",
-    "filename": "aspp_test.txt",
+    "name": "pranet_test",
     "tensorboard": true,
     "sample":{
         "img_path": "/Users/macbook/Documents/AI/topics/DomainAdaptation/code/rnd-semantic-segmentation/configs/demo_image.txt",

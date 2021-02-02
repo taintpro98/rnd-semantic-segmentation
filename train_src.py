@@ -249,4 +249,4 @@ if __name__ == "__main__":
     cfg.merge_from_list(args.opts)
     cfg.freeze()
 
-    main("pranet", cfg, args.local_rank)
+    main("aspp", cfg, args.local_rank)

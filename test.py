@@ -13,15 +13,15 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def test(cfg, config):
     name = config["name"]
-    logger = setup_logger(name, cfg.OUTPUT_DIR, None, config['filename'])
+    logger = setup_logger(name, cfg.OUTPUT_DIR, None)
     logger.info("#"*20 + " Start Testing " + "#"*20)
 
     test_data = build_dataset(cfg, mode='test', is_source=False, epochwise=False)
     test_loader = torch.utils.data.DataLoader(test_data, batch_size=cfg.TEST.BATCH_SIZE, shuffle=False, num_workers=4, pin_memory=True, sampler=None)
 
-    if name == "aspp":
+    if name == "aspp_test":
         tester = ASPPTester(cfg, device, test_loader, logger)
-    elif name == "pranet":
+    elif name == "pranet_test":
         tester = PranetTester(cfg, device, test_loader, logger)
     tester._load_checkpoint()
     tester.test()
