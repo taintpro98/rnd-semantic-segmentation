@@ -1,5 +1,5 @@
 import os
-# from .cityscapes import cityscapesDataSet
+from .cityscapes import cityscapesDataSet
 # from .cityscapes_self_distill import cityscapesSelfDistillDataSet
 # from .synthia import synthiaDataSet
 from .gta5 import GTA5DataSet
@@ -8,7 +8,7 @@ from .polyp import PolypDataset
 from .bli import BLIDataset
 
 class DatasetCatalog(object):
-    DATASET_DIR = "../FADA/datasets"
+    DATASET_DIR = "/home/admin_mcn/POLYP_DATA/"
     DATASETS = {
         "gta5_train": {
             "data_dir": "gta5",
@@ -81,7 +81,7 @@ class DatasetCatalog(object):
             if 'distill' in name:
                 args['label_dir'] = os.path.join(data_dir, attrs["label_dir"])
                 return cityscapesSelfDistillDataSet(args["root"], args["data_list"], args['label_dir'], max_iters=max_iters, num_classes=num_classes, split=mode, transform=transform)
-            return cityscapesDataSet(args["root"], args["data_list"], max_iters=max_iters, num_classes=num_classes, split=mode, transform=transform)
+            return cityscapesDataSet(args["root"], num_classes=num_classes, mode=mode, transform=transform)
         elif "kvasir" in name:
             data_dir = DatasetCatalog.DATASET_DIR
             attrs = DatasetCatalog.DATASETS[name]
@@ -105,6 +105,6 @@ class DatasetCatalog(object):
                 root=os.path.join(data_dir, attrs["data_dir"]),
                 data_list=os.path.join(data_dir, attrs["data_list"]),
             )
-            return BLIDataset(args["root"], num_classes=num_classes, mode=mode, transform=transform)
+            return BLIDataset(cfg, args["root"], trainsize=cfg.INPUT.TRAINSIZE, num_classes=num_classes, mode=mode, transform=transform)
 
         raise RuntimeError("Dataset not available: {}".format(name))

@@ -10,8 +10,8 @@ from core.models.build import build_model, build_feature_extractor, build_classi
 from base.base_trainer import BaseTrainer
 
 class ASPPTrainer(BaseTrainer):
-    def __init__(self, name, cfg, train_loader, local_rank):
-        super(ASPPTrainer, self).__init__(name, cfg, train_loader, local_rank)
+    def __init__(self, name, cfg, train_loader, local_rank, logger=None):
+        super(ASPPTrainer, self).__init__(name, cfg, train_loader, local_rank, logger)
         
     def init_params(self):
         self.feature_extractor = build_feature_extractor(self.cfg)
@@ -27,7 +27,6 @@ class ASPPTrainer(BaseTrainer):
         self.optimizer_cls.zero_grad()
 
     def _load_checkpoint(self):
-        self.logger.info("Loading checkpoint from {}".format(self.cfg.resume))
         self.checkpoint = torch.load(self.cfg.resume, map_location=self.device)
         
         model_weights = self.checkpoint['feature_extractor'] if self.distributed else strip_prefix_if_present(self.checkpoint['feature_extractor'], 'module.')

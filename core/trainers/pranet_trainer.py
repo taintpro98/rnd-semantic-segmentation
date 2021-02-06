@@ -11,8 +11,8 @@ from core.utils.utils import AvgMeter, clip_gradient
 from core.utils.adapt_lr import GradualWarmupScheduler
 
 class PraNetTrainer(BaseTrainer):
-    def __init__(self, name, cfg, train_loader, local_rank):
-        super(PraNetTrainer, self).__init__(name, cfg, train_loader, local_rank)
+    def __init__(self, name, cfg, train_loader, local_rank, logger=None):
+        super(PraNetTrainer, self).__init__(name, cfg, train_loader, local_rank, logger)
         
     def init_params(self):
         self.trainsize = self.cfg.INPUT.TRAINSIZE
@@ -86,7 +86,6 @@ class PraNetTrainer(BaseTrainer):
         torch.save(checkpoint, save_path)
 
     def _load_checkpoint(self):
-        self.logger.info("Loading checkpoint from {}".format(self.cfg.resume))
         self.checkpoint = torch.load(self.cfg.resume, map_location=self.device)
         self.model.load_state_dict(self.checkpoint['model'])
         if "optimizer" in self.checkpoint:
