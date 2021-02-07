@@ -60,9 +60,10 @@ class AsppFada:
         end = time.time()
 
         for epoch in range(self.fada.start_adv_epoch, self.cfg.SOLVER.EPOCHS+1):
-            for i, ((src_input, src_label, src_name), (tgt_input, _)) in enumerate(zip(self.aspp.train_loader, self.fada.tgt_train_loader)):
+            for i, ((src_input, src_label, src_name), (tgt_input, _, _)) in enumerate(zip(self.aspp.train_loader, self.fada.tgt_train_loader)):
                 data_time = time.time() - end
-
+                
+                self.iteration+=1
                 current_lr = adjust_learning_rate(self.cfg.SOLVER.LR_METHOD, self.cfg.SOLVER.BASE_LR, self.iteration, max_iters, power=self.cfg.SOLVER.LR_POWER)
                 current_lr_D = adjust_learning_rate(self.cfg.SOLVER.LR_METHOD, self.cfg.SOLVER.BASE_LR_D, self.iteration, max_iters, power=self.cfg.SOLVER.LR_POWER)
                 for index in range(len(self.aspp.optimizer_fea.param_groups)):
