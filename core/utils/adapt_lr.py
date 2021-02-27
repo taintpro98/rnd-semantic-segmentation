@@ -5,6 +5,13 @@ def adjust_lr(optimizer, init_lr, epoch, decay_rate=0.1, decay_epoch=30):
     for param_group in optimizer.param_groups:
         param_group['lr'] *= decay
 
+def adjust_learning_rate(method, base_lr, iters, max_iters, power):
+    if method=='poly':
+        lr = base_lr * ((1 - float(iters) / max_iters) ** (power))
+    else:
+        raise NotImplementedError
+    return lr
+
 class GradualWarmupScheduler(_LRScheduler):
     def __init__(self, optimizer, multiplier, total_epoch, after_scheduler=None):
         self.multiplier = multiplier

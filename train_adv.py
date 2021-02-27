@@ -9,22 +9,6 @@ from core.configs import cfg
 from core.datasets.build import build_dataset
 from core.adapters.aspp_fada import AsppFada
 
-def strip_prefix_if_present(state_dict, prefix):
-    keys = sorted(state_dict.keys())
-    if not all(key.startswith(prefix) for key in keys):
-        return state_dict
-    stripped_state_dict = OrderedDict()
-    for key, value in state_dict.items():
-        stripped_state_dict[key.replace(prefix, "")] = value
-    return stripped_state_dict
-
-def soft_label_cross_entropy(pred, soft_label, pixel_weights=None):
-    N, C, H, W = pred.shape
-    loss = -soft_label.float()*F.log_softmax(pred, dim=1)
-    if pixel_weights is None:
-        return torch.mean(torch.sum(loss, dim=1))
-    return torch.mean(pixel_weights*torch.sum(loss, dim=1))
-
 def main(name, cfg, local_rank, distributed):
     src_train_data = build_dataset(cfg, mode='train', is_source=True)
     tgt_train_data = build_dataset(cfg, mode='train', is_source=False)

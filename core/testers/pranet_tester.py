@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 
 from core.models.classifiers.pranet.PraNet_Res2Net import PraNet
-from core.utils.utility import strip_prefix_if_present, inference, intersectionAndUnion, intersectionAndUnionGPU, AverageMeter
+from core.utils.utility import inference, intersectionAndUnion, intersectionAndUnionGPU, AverageMeter
 
 class PranetTester:
     def __init__(self, cfg, device, test_loader, logger):

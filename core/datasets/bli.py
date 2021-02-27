@@ -49,7 +49,7 @@ class BLIDataset(Dataset):
 
         name = datafile['name']
 
-        return image, name
+        return image, 0, name
 
     def _transform(self, image, label):
         w, h = self.cfg.INPUT.INPUT_SIZE_TEST

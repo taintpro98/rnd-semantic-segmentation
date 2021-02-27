@@ -2,6 +2,7 @@
     "root": "runs",
     "name": "pranet_test",
     "tensorboard": true,
+    "labeled": false,
     "sample":{
         "img_path": "/Users/macbook/Documents/AI/topics/DomainAdaptation/code/rnd-semantic-segmentation/configs/demo_image.txt",
         "lab_path": "/Users/macbook/Documents/AI/topics/DomainAdaptation/code/rnd-semantic-segmentation/configs/demo_groundtruth.txt"

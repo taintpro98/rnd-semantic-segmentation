@@ -132,6 +132,13 @@ def strip_prefix_if_present(state_dict, prefix):
         stripped_state_dict[key.replace(prefix, "")] = value
     return stripped_state_dict
 
+def soft_label_cross_entropy(pred, soft_label, pixel_weights=None):
+    N, C, H, W = pred.shape
+    loss = -soft_label.float()*F.log_softmax(pred, dim=1)
+    if pixel_weights is None:
+        return torch.mean(torch.sum(loss, dim=1))
+    return torch.mean(pixel_weights*torch.sum(loss, dim=1))
+
 def inference(feature_extractor, classifier, image, label, flip=True):
     size = label.shape[-2:]
     if flip:

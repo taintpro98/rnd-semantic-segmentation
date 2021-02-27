@@ -5,8 +5,8 @@ import time
 import logging
 
 from core.utils.utility import MetricLogger, strip_prefix_if_present
-from core.models.build import build_model, build_feature_extractor, build_classifier, adjust_learning_rate
-
+from core.models.build import build_model, build_feature_extractor, build_classifier
+from core.utils.adapt_lr import adjust_learning_rate
 from base.base_trainer import BaseTrainer
 
 class ASPPTrainer(BaseTrainer):
@@ -99,10 +99,11 @@ class ASPPTrainer(BaseTrainer):
                 meters.update(time=batch_time, data=data_time)
                 eta_seconds = meters.time.global_avg * (max_iters - self.iteration)
                 eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
-                if i % 20 == 0 or i == len(self.train_loader):
+                if self.iteration % 20 == 0 or self.iteration == max_iters:
                     self.logger.info(
                         meters.delimiter.join(
                             [
+                                "Epoch: {epoch}",
                                 "eta: {eta}",
                                 "iter: {iter}",
                                 "{meters}",
@@ -110,6 +111,7 @@ class ASPPTrainer(BaseTrainer):
                                 "max mem: {memory:.0f}",
                             ]
                         ).format(
+                            epoch=epoch,
                             eta=eta_string,
                             iter=self.iteration,
                             meters=str(meters),
@@ -119,7 +121,7 @@ class ASPPTrainer(BaseTrainer):
                     )
     
             if epoch % self.cfg.SOLVER.CHECKPOINT_PERIOD == 0 and save_to_disk:
-                filename = os.path.join(output_dir, "model_iter{:06d}.pth".format(self.iteration))
+                filename = os.path.join(output_dir, "Aspp-{}.pth".format(epoch))
                 self._save_checkpoint(epoch, filename)
         
         total_training_time = time.time() - start_training_time

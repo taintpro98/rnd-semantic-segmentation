@@ -1,15 +1,7 @@
 import torch 
 
 from core.models.build import build_adversarial_discriminator
-
-def strip_prefix_if_present(state_dict, prefix):
-    keys = sorted(state_dict.keys())
-    if not all(key.startswith(prefix) for key in keys):
-        return state_dict
-    stripped_state_dict = OrderedDict()
-    for key, value in state_dict.items():
-        stripped_state_dict[key.replace(prefix, "")] = value
-    return stripped_state_dict
+from core.utils.utility import strip_prefix_if_present
 
 class FADAAdapter:
     def __init__(self, cfg, tgt_train_loader, device):
@@ -33,7 +25,6 @@ class FADAAdapter:
         self.optimizer_D.zero_grad()
 
     def _load_checkpoint(self, checkpoint, logger):
-        
         if "model_D" in checkpoint:
             logger.info("Loading model_D from {}".format(self.cfg.resume))
             model_D_weights = checkpoint['model_D'] if self.distributed else strip_prefix_if_present(checkpoint['model_D'], 'module.')

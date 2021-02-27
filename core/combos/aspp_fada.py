@@ -6,21 +6,13 @@ import torch
 import torch.nn.functional as F
 
 from core.trainers.aspp_trainer import ASPPTrainer
-from base.fada_adapter import FADAAdapter
-from core.utils.utility import setup_logger, MetricLogger
-from core.models.build import adjust_learning_rate
-
-def soft_label_cross_entropy(pred, soft_label, pixel_weights=None):
-    N, C, H, W = pred.shape
-    loss = -soft_label.float()*F.log_softmax(pred, dim=1)
-    if pixel_weights is None:
-        return torch.mean(torch.sum(loss, dim=1))
-    return torch.mean(pixel_weights*torch.sum(loss, dim=1))
+from core.adapters.fada_adapter import FADAAdapter
+from core.utils.utility import setup_logger, MetricLogger, soft_label_cross_entropy
+from core.utils.adapt_lr import adjust_learning_rate
 
 class AsppFada:
     def __init__(self, name, cfg, src_train_loader, tgt_train_loader, local_rank):
         self.cfg = cfg
-        self.iteration = 0
         self.logger = setup_logger(name, cfg.OUTPUT_DIR, local_rank)
         self.aspp = ASPPTrainer(name, cfg, src_train_loader, local_rank, self.logger) #loaded checkpoints and src_train_loader
         self.fada = FADAAdapter(cfg, tgt_train_loader, self.aspp.device)
@@ -42,11 +34,12 @@ class AsppFada:
 
     def train(self):
         save_to_disk = self.aspp.local_rank == 0
+        self.iteration = (self.fada.start_adv_epoch - 1) * min(len(self.aspp.train_loader), len(self.fada.tgt_train_loader)) 
 
         criterion = torch.nn.CrossEntropyLoss(ignore_index=255)
         bce_loss = torch.nn.BCELoss(reduction='none')
 
-        max_iters = self.cfg.SOLVER.MAX_ITER
+        max_iters = self.cfg.SOLVER.EPOCHS * min(len(self.aspp.train_loader), len(self.fada.tgt_train_loader))
         source_label = 0
         target_label = 1
         self.logger.info("#"*20 + " Start Adversarial Training " + "#"*20)
@@ -140,13 +133,15 @@ class AsppFada:
                     self.logger.info(
                         meters.delimiter.join(
                             [
+                                "Epoch: {epoch}"
                                 "eta: {eta}",
                                 "iter: {iter}",
                                 "{meters}",
-                                    "lr: {lr:.6f}",
-                                    "max mem: {memory:.0f}",
-                                ]
+                                "lr: {lr:.6f}",
+                                "max mem: {memory:.0f}",
+                            ]
                             ).format(
+                                epoch=epoch,
                                 eta=eta_string,
                                 iter=self.iteration,
                                 meters=str(meters),
@@ -154,15 +149,16 @@ class AsppFada:
                                 memory=torch.cuda.max_memory_allocated() / 1024.0 / 1024.0,
                             )
                         )
+                    # self.logger.info('ETA: {}, Epoch [{:03d}/{:03d}], Step [{:04d}/{:04d}]', )
                 
             if epoch % self.cfg.SOLVER.CHECKPOINT_PERIOD == 0 and save_to_disk:
-                filename = os.path.join(self.cfg.OUTPUT_DIR, "model_iter{:06d}.pth".format(self.iteration))
+                filename = os.path.join(self.cfg.OUTPUT_DIR, "AsppFada-{}.pth".format(epoch))
                 self._save_checkpoint(epoch, filename)
 
         total_training_time = time.time() - start_training_time
         total_time_str = str(datetime.timedelta(seconds=total_training_time))
         self.logger.info(
-            "Total training time: {} ({:.4f} s / it)".format(
-                total_time_str, total_training_time / (self.cfg.SOLVER.MAX_ITER)
+            "Total training time: {} ({:.4f} s / epoch)".format(
+                total_time_str, total_training_time / (self.cfg.SOLVER.EPOCHS)
             )
         )

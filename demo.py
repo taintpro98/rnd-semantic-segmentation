@@ -186,13 +186,14 @@ if __name__ == "__main__":
         res = list()
 
         image = Image.open(img_path).convert('RGB')
-        label = np.array(Image.open(lab_path), dtype=np.float32)
+        height, width, _ = np.array(image).shape
+        label = np.array(Image.open(lab_path), dtype=np.float32) if config["labeled"] else np.zeros((height, width))
         if transform is not None:
             image, label = transform(image, label)
         image = image.unsqueeze(0)
 
-        img = Image.open(img_path).convert('RGB')
-        lab = Image.open(lab_path)
+        img = Image.open(img_path).convert('RGB') 
+        lab = Image.open(lab_path) if config["labeled"] else Image.fromarray(np.zeros((height, width)))
         res.append(img)
         res.append(lab.convert('RGB'))
 
@@ -221,10 +222,10 @@ if __name__ == "__main__":
     if config["tensorboard"]:
         for idx, lab_path in enumerate(lab_paths):
             name = os.path.basename(lab_path)[:-4]
-            label = np.array(Image.open(lab_path))
-            label_copy = np.ones(label.shape, dtype=np.int32) * 255
-            for k, v in config["id_to_trainid"].items():
-                label_copy[label == int(k)] = v
+            # label = np.array(Image.open(lab_path))
+            # label_copy = np.ones(label.shape, dtype=np.int32) * 255
+            # for k, v in config["id_to_trainid"].items():
+            #     label_copy[label == int(k)] = v
             # label = Image.fromarray(label_copy)
 
             samples[idx] = convert_pilimgs2tensor(samples[idx])
