@@ -61,7 +61,7 @@ class ASPPTrainer(BaseTrainer):
         self.iteration = (self.start_epoch - 1) * len(self.train_loader)     
         criterion = torch.nn.CrossEntropyLoss(ignore_index=255)
 
-        max_iters = self.cfg.SOLVER.EPOCHS * len(self.train_loader)
+        max_iter = self.cfg.SOLVER.EPOCHS * len(self.train_loader)
         self.logger.info("#"*20 + " Start Training " + "#"*20)
         meters = MetricLogger(delimiter="  ")
         self.feature_extractor.train()
@@ -72,7 +72,7 @@ class ASPPTrainer(BaseTrainer):
         for epoch in range(self.start_epoch, self.cfg.SOLVER.EPOCHS+1):
             for i, (src_input, src_label, _) in enumerate(self.train_loader):
                 data_time = time.time() - end
-                current_lr = adjust_learning_rate(self.cfg.SOLVER.LR_METHOD, self.cfg.SOLVER.BASE_LR, self.iteration, max_iters, power=self.cfg.SOLVER.LR_POWER)
+                current_lr = adjust_learning_rate(self.cfg.SOLVER.LR_METHOD, self.cfg.SOLVER.BASE_LR, self.iteration, max_iter, power=self.cfg.SOLVER.LR_POWER)
                 for index in range(len(self.optimizer_fea.param_groups)):
                     self.optimizer_fea.param_groups[index]['lr'] = current_lr
                 for index in range(len(self.optimizer_cls.param_groups)):
@@ -97,9 +97,9 @@ class ASPPTrainer(BaseTrainer):
                 batch_time = time.time() - end
                 end = time.time()
                 meters.update(time=batch_time, data=data_time)
-                eta_seconds = meters.time.global_avg * (max_iters - self.iteration)
+                eta_seconds = meters.time.global_avg * (max_iter - self.iteration)
                 eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
-                if self.iteration % 20 == 0 or self.iteration == max_iters:
+                if self.iteration % 20 == 0 or self.iteration == max_iter:
                     self.logger.info(
                         meters.delimiter.join(
                             [

@@ -39,7 +39,7 @@ class AsppFada:
         criterion = torch.nn.CrossEntropyLoss(ignore_index=255)
         bce_loss = torch.nn.BCELoss(reduction='none')
 
-        max_iters = self.cfg.SOLVER.EPOCHS * min(len(self.aspp.train_loader), len(self.fada.tgt_train_loader))
+        max_iter = self.cfg.SOLVER.EPOCHS * min(len(self.aspp.train_loader), len(self.fada.tgt_train_loader))
         source_label = 0
         target_label = 1
         self.logger.info("#"*20 + " Start Adversarial Training " + "#"*20)
@@ -57,8 +57,8 @@ class AsppFada:
                 data_time = time.time() - end
                 
                 self.iteration+=1
-                current_lr = adjust_learning_rate(self.cfg.SOLVER.LR_METHOD, self.cfg.SOLVER.BASE_LR, self.iteration, max_iters, power=self.cfg.SOLVER.LR_POWER)
-                current_lr_D = adjust_learning_rate(self.cfg.SOLVER.LR_METHOD, self.cfg.SOLVER.BASE_LR_D, self.iteration, max_iters, power=self.cfg.SOLVER.LR_POWER)
+                current_lr = adjust_learning_rate(self.cfg.SOLVER.LR_METHOD, self.cfg.SOLVER.BASE_LR, self.iteration, max_iter, power=self.cfg.SOLVER.LR_POWER)
+                current_lr_D = adjust_learning_rate(self.cfg.SOLVER.LR_METHOD, self.cfg.SOLVER.BASE_LR_D, self.iteration, max_iter, power=self.cfg.SOLVER.LR_POWER)
                 for index in range(len(self.aspp.optimizer_fea.param_groups)):
                     self.aspp.optimizer_fea.param_groups[index]['lr'] = current_lr
                 for index in range(len(self.aspp.optimizer_cls.param_groups)):
@@ -126,14 +126,14 @@ class AsppFada:
                 end = time.time()
                 meters.update(time=batch_time, data=data_time)
 
-                eta_seconds = meters.time.global_avg * (self.cfg.SOLVER.STOP_ITER - self.iteration)
+                eta_seconds = meters.time.global_avg * (max_iter - self.iteration)
                 eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
 
-                if self.iteration % 20 == 0 or self.iteration == max_iters:
+                if self.iteration % 20 == 0 or self.iteration == max_iter:
                     self.logger.info(
                         meters.delimiter.join(
                             [
-                                "Epoch: {epoch}"
+                                "Epoch: {epoch}",
                                 "eta: {eta}",
                                 "iter: {iter}",
                                 "{meters}",

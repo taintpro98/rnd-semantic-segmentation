@@ -5,9 +5,9 @@ def adjust_lr(optimizer, init_lr, epoch, decay_rate=0.1, decay_epoch=30):
     for param_group in optimizer.param_groups:
         param_group['lr'] *= decay
 
-def adjust_learning_rate(method, base_lr, iters, max_iters, power):
+def adjust_learning_rate(method, base_lr, iters, max_iter, power):
     if method=='poly':
-        lr = base_lr * ((1 - float(iters) / max_iters) ** (power))
+        lr = base_lr * ((1 - float(iters) / max_iter) ** (power))
     else:
         raise NotImplementedError
     return lr

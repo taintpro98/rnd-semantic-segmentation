@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 from core.configs import cfg
 from core.datasets.build import build_dataset
-from core.adapters.aspp_fada import AsppFada
+from core.combos.aspp_fada import AsppFada
 
 def main(name, cfg, local_rank, distributed):
     src_train_data = build_dataset(cfg, mode='train', is_source=True)

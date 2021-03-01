@@ -54,7 +54,7 @@ class DatasetCatalog(object):
     }
 
     @staticmethod
-    def get(cfg, name, mode, num_classes, max_iters=None, transform=None, cross_val=None):
+    def get(cfg, name, mode, num_classes, transform=None, cross_val=None):
         if "gta5" in name:
             data_dir = DatasetCatalog.DATASET_DIR
             attrs = DatasetCatalog.DATASETS[name]
