@@ -20,11 +20,8 @@ class ASPPTrainer(BaseTrainer):
         self.classifier = build_classifier(self.cfg)
         self.classifier.to(self.device)
 
-        self.optimizer_fea = torch.optim.SGD(self.feature_extractor.parameters(), lr=self.cfg.SOLVER.BASE_LR, momentum=self.cfg.SOLVER.MOMENTUM, weight_decay=self.cfg.SOLVER.WEIGHT_DECAY)
-        self.optimizer_fea.zero_grad()
-    
+        self.optimizer_fea = torch.optim.SGD(self.feature_extractor.parameters(), lr=self.cfg.SOLVER.BASE_LR, momentum=self.cfg.SOLVER.MOMENTUM, weight_decay=self.cfg.SOLVER.WEIGHT_DECAY)    
         self.optimizer_cls = torch.optim.SGD(self.classifier.parameters(), lr=self.cfg.SOLVER.BASE_LR*10, momentum=self.cfg.SOLVER.MOMENTUM, weight_decay=self.cfg.SOLVER.WEIGHT_DECAY)
-        self.optimizer_cls.zero_grad()
 
     def _load_checkpoint(self):
         self.checkpoint = torch.load(self.cfg.resume, map_location=self.device)

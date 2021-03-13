@@ -1,46 +1,21 @@
-import os
-import torch
-from . import transform
 from .dataset_path_catalog import DatasetCatalog
+from core.components.augment import Augmenter
+from core.datasets.func import *
 
-def build_transform(cfg, mode, is_source):
-    if mode=="train":
-        w, h = cfg.INPUT.SOURCE_INPUT_SIZE_TRAIN if is_source else cfg.INPUT.TARGET_INPUT_SIZE_TRAIN
-        trans_list = [
-            transform.ToTensor(),
-            transform.Normalize(mean=cfg.INPUT.PIXEL_MEAN, std=cfg.INPUT.PIXEL_STD, to_bgr255=cfg.INPUT.TO_BGR255)
-        ]
-        if cfg.INPUT.HORIZONTAL_FLIP_PROB_TRAIN > 0:
-            trans_list = [transform.RandomHorizontalFlip(p=cfg.INPUT.HORIZONTAL_FLIP_PROB_TRAIN),] + trans_list
-        if cfg.INPUT.INPUT_SCALES_TRAIN[0]==cfg.INPUT.INPUT_SCALES_TRAIN[1] and cfg.INPUT.INPUT_SCALES_TRAIN[0]==1:
-            trans_list = [transform.Resize((h, w)),] + trans_list
-        else:
-            trans_list = [
-                transform.RandomScale(scale=cfg.INPUT.INPUT_SCALES_TRAIN),
-                transform.RandomCrop(size=(h, w), pad_if_needed=True),
-            ] + trans_list
-        if is_source:
-            trans_list = [
-                transform.ColorJitter(
-                    brightness=cfg.INPUT.BRIGHTNESS,
-                    contrast=cfg.INPUT.CONTRAST,
-                    saturation=cfg.INPUT.SATURATION,
-                    hue=cfg.INPUT.HUE,
-                ),
-            ] + trans_list
-        trans = transform.Compose(trans_list)
+def build_collate_fn(cfg):
+    if cfg.AUG.COLLATE == "attn":
+        return attn_collate_fn
+    elif cfg.AUG.COLLATE == "pra":
+        return pra_collate_fn
     else:
-        w, h = cfg.INPUT.INPUT_SIZE_TEST
-        trans = transform.Compose([
-            transform.Resize((h, w), resize_label=False),
-            transform.ToTensor(),
-            transform.Normalize(mean=cfg.INPUT.PIXEL_MEAN, std=cfg.INPUT.PIXEL_STD, to_bgr255=cfg.INPUT.TO_BGR255)
-        ])
-    return trans
+        return None
 
 def build_dataset(cfg, mode='train', is_source=True):
     assert mode in ['train', 'val', 'test']
-    transform = build_transform(cfg, mode, is_source)
+    # transform = build_transform(cfg, mode, is_source)
+    augmenter = Augmenter(cfg, mode, is_source)
+    transform = augmenter.build_transform()
+    
     if mode=='train':
         if is_source:
             dataset = DatasetCatalog.get(cfg, cfg.DATASETS.SOURCE_TRAIN, mode, num_classes=cfg.MODEL.NUM_CLASSES, transform=transform, cross_val=cfg.DATASETS.CROSS_VAL)

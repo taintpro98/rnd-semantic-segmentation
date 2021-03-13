@@ -188,3 +188,15 @@ def setup_logger(name, save_dir, distributed_rank):
     #Creating an object 
     logger=logging.getLogger(name) 
     return logger
+
+class Threshold(nn.Module):
+    """
+    Thresholding transform for image
+    """
+    def __init__(self, threshold=128):
+        super().__init__()
+        self.threshold = threshold
+
+    def forward(self, input):
+        mask = input >= self.threshold
+        return torch.as_tensor(mask, dtype=torch.int)

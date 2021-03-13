@@ -61,3 +61,95 @@ class KvasirDataSet(Dataset):
             image, label = self.transform(image, label)
 
         return image, label, name
+
+class KvasirFoldDataset(Dataset):
+    def __init__(self, root_dir: str,
+        shape=(512, 512),
+        image_dir="images",
+        mask_dir="masks",
+        return_paths=False,
+        augmenter: Augmenter = Augmenter()
+    ):
+        self.root_dir = root_dir
+        self.shape = shape
+        self.augmenter = augmenter
+        self.return_paths = return_paths
+
+        self.__image_dir = image_dir
+        self.__mask_dir = mask_dir
+        self.__scan_files()
+
+    def __scan_files(self):
+        self.__pairs = []
+
+        for image_name in os.listdir(self.image_dir):
+            ext = image_name.split('.')[-1]
+            image_path = os.path.join(self.image_dir, image_name)
+            mask_path = os.path.join(self.mask_dir, image_name)
+
+            if ext not in ('jpg', 'png'):
+                logger.warning(f'Skipping file {image_path}')
+                continue
+
+            if not os.path.exists(mask_path):
+                logger.warning(f'No mask found for {image_path}')
+                continue
+
+            self.__pairs.append({
+                'image': image_path,
+                'mask': mask_path
+            })
+
+    def __len__(self) -> int:
+        return len(self.__pairs)
+
+    def __getitem__(self, index: int):
+        pair = self.__pairs[index]
+        image_path, mask_path = pair['image'], pair['mask']
+        resizer = ttf.Resize(self.shape)
+
+        # Read images
+        image_t = read_image(image_path)
+        mask_np = self.read_binary_mask(mask_path)
+        if mask_np is None:
+            raise ValueError(f"Cannot read file at {mask_path}")
+        mask_t = torch.from_numpy(mask_np)
+
+        # Augment first
+        image_t, mask_t = self.augmenter(image_t, mask_t)
+
+        # Resize
+        image_t = resizer(image_t)
+        mask_t = resizer(mask_t)
+
+        if not self.return_paths:
+            return image_t, mask_t
+        else:
+            return image_t, mask_t, image_path, mask_path
+
+    @property
+    def image_dir(self) -> str:
+        return os.path.join(self.root_dir, self.__image_dir)
+
+    @property
+    def mask_dir(self) -> str:
+        return os.path.join(self.root_dir, self.__mask_dir)
+
+    @property
+    def meta_path(self) -> str:
+        return os.path.join(self.root_dir, "meta.yml")
+
+    @staticmethod
+    def read_binary_mask(path):
+        mask = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+        mask = mask * 255
+        mask = np.stack([mask, mask, mask])
+        return mask
+
+
+class KvasirMultiFoldDataset(ConcatDataset):
+    def __init__(self, root_dirs: List[str], **kwargs):
+        super().__init__([
+            KvasirFoldDataset(root_dir, **kwargs)
+            for root_dir in root_dirs
+        ])

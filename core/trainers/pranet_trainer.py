@@ -2,7 +2,6 @@ import os
 from datetime import datetime
 
 import torch
-from torch.autograd import Variable
 import torch.nn.functional as F
 
 from base.base_trainer import BaseTrainer
@@ -40,8 +39,8 @@ class PraNetTrainer(BaseTrainer):
                 self.optimizer.zero_grad()
                 # ---- data prepare ----
                 images, gts, _ = pack
-                images = Variable(images).cuda()
-                gts = Variable(gts).cuda()
+                images = images.cuda()
+                gts = gts.cuda()
                 # ---- rescale ----
                 trainsize = int(round(self.trainsize*rate/32)*32)
                 if rate != 1:
