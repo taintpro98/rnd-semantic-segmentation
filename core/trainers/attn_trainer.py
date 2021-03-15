@@ -1,10 +1,14 @@
 import os
+from datetime import datetime
 
 import torch
+import torch.nn.functional as F
 
 from base.base_trainer import BaseTrainer
 from core.models.classifiers.attn.eff import Encoder, Decoder
-from core.models.classifiers.attn.loss import TverskyLoss
+from core.models.classifiers.attn.loss import TverskyLoss, CompoundLoss, BinaryCrossEntropyLoss, MultiscaleLoss
+from core.utils.adapt_lr import GradualWarmupScheduler
+from core.utils.utility import generate_scales, probs_to_onehot
 
 class AttnTrainer(BaseTrainer):
     def __init__(self, name, cfg, train_loader, local_rank, logger=None):
@@ -34,7 +38,7 @@ class AttnTrainer(BaseTrainer):
             pred_probs = torch.sigmoid(output)  # B x C x H x W
             pred_probs = probs_to_onehot(pred_probs)
 
-            loss = criterion(outputs, scaled_labels)
+            loss = self.criterion(outputs, scaled_labels)
             loss.backward()
 
             self.optimizer_enc.step()
@@ -42,8 +46,8 @@ class AttnTrainer(BaseTrainer):
 
             self.iteration+=1
 
-            if i % 20 = 0 or i == len(self.train_loader):
-                self.logger.info('{} Epoch [{:03d}/{:03d}], Step [{:04d}/{:04d}], learning_rate: {:0.8f}]'.format())
+            if i % 20 == 0 or i == len(self.train_loader):
+                self.logger.info('{} Epoch [{:03d}/{:03d}], Step [{:04d}/{:04d}], encode_learning_rate: [{:0.8f}], decode_learning_rate: [{:0.8f}]'.format(datetime.now(), epoch, self.cfg.SOLVER.EPOCHS, i, len(self.train_loader), self.optimizer_enc.param_groups[0]['lr'], self.optimizer_dec.param_groups[0]['lr']))
 
         save_path = self.cfg.OUTPUT_DIR
         os.makedirs(save_path, exist_ok=True)
@@ -52,11 +56,15 @@ class AttnTrainer(BaseTrainer):
             self.logger.info('[Saving Snapshot:] ' + save_path + 'Attn-{}.pth'.format(epoch))
 
     def train(self):
-        output_dir = self.cfg.OUTPUT_DIR
         save_to_disk = self.local_rank == 0
         self.iteration = (self.start_epoch - 1) * len(self.train_loader)
 
-        criterion = TverskyLoss()
+        self.criterion = MultiscaleLoss(
+            CompoundLoss([
+                TverskyLoss(),
+                BinaryCrossEntropyLoss()
+            ])
+        )
 
         self.logger.info("#"*20 + " Start Attn Training " + "#"*20)
 
@@ -68,7 +76,7 @@ class AttnTrainer(BaseTrainer):
         cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_dec, 100, eta_min=0, last_epoch=-1)
         scheduler_dec = GradualWarmupScheduler(self.optimizer_dec, multiplier=8, total_epoch=5, after_scheduler=cosine_scheduler)
 
-        for epoch in range(self.start_epoch, self.cfg.SOLVER.EPOCH+1):
+        for epoch in range(self.start_epoch, self.cfg.SOLVER.EPOCHS+1):
             self._train_epoch(epoch)
             scheduler_enc.step()
             scheduler_dec.step()

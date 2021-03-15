@@ -10,6 +10,8 @@ from torch.autograd import Variable
 
 from skimage.io import imread
 
+from core.components.augment import cv2_resize
+
 class PolypDataset(data.Dataset):
     """
     dataloader for polyp segmentation tasks
@@ -55,7 +57,9 @@ class PolypDataset(data.Dataset):
         mask = imread(datafile["label"])
         
         image, mask = self.transform(image=image, label=mask)
-
+        image, mask = cv2_resize(image, mask, self.cfg.INPUT.SOURCE_INPUT_SIZE_TRAIN)
+        name = datafile["name"]
+        
         return image, mask, name
 
     def rgb_loader(self, path):

@@ -1,26 +1,27 @@
 import torch
 import torch.nn as nn
-
+import numpy as np
 from torchvision import transforms as ttf
+
 from core.utils.utility import Threshold
 
 def attn_collate_fn(batch):
-    image_t = torch.stack([
-        b[0] for b in batch
-    ])
-    mask_t = torch.stack([
-        b[1] for b in batch
-    ], dim=0)  # B x 3 x H x W
+    images, masks, names = zip(*batch)
 
-    image_t = image_t.float() / 255.
+    images = torch.stack([torch.from_numpy(image) for image in images], 0) # tensor B x H x W x 3
+    images = images.permute(0, 3, 1, 2) # tensor B x 3 x H x W
+    images = images.float() / 255.
 
-    mask_t = ttf.Compose([
-        ttf.Grayscale(num_output_channels=1),
-        Threshold(threshold=128),
-    ])(mask_t)
-    mask_t = mask_t.long()
-
-    return image_t, mask_t
+    masks = torch.stack([
+        torch.from_numpy(mask[:,:,np.newaxis]) for mask in masks
+    ], 0) # tensor B x H x W x 1
+    masks = masks.long()
+    masks = masks.permute(0, 3, 1, 2) # tensor B x 1 x H x W
+    # masks = ttf.Compose([
+    #     ttf.Grayscale(num_output_channels=1),
+    #     Threshold(threshold=128),
+    # ])(masks)
+    return images, masks, names
 
 def pra_collate_fn(batch):
     """
@@ -30,15 +31,14 @@ def pra_collate_fn(batch):
     """
     images, masks, names = zip(*batch)
 
-    images = torch.stack(images, 0) # tensor B x H x W x 3
+    images = torch.stack([torch.from_numpy(image) for image in images], 0) # tensor B x H x W x 3
     images = images.permute(0, 3, 1, 2) # tensor B x 3 x H x W
     images = images.float() / 255.
 
     masks = torch.stack([
-        mask[:,:,np.newaxis] for mask in masks
+        torch.from_numpy(mask[:,:,np.newaxis]) for mask in masks
     ], 0) # tensor B x H x W x 1
-        
-    masks = masks.float()
+    masks = masks.long()
     masks = masks.permute(0, 3, 1, 2) # tensor B x 1 x H x W
 
     return images, masks, names

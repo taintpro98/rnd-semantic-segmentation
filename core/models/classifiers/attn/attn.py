@@ -1,10 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import pytorch_lightning as pl
 
-
-class AdditiveAttnGate(pl.LightningModule):
+class AdditiveAttnGate(nn.Module):
     def __init__(self, x_channels: int, g_channels: int):
         super().__init__()
 

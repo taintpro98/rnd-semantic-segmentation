@@ -1,12 +1,18 @@
 import torch
 import torch.nn as nn
 import albumentations as al
+import cv2
 
 from torchvision.io import read_image
 from albumentations.core.composition import Compose, OneOf
 from albumentations.augmentations import transforms
 
 from core.datasets import transform
+
+def cv2_resize(image, label, size=(512, 512)):
+    image = cv2.resize(image, dsize=size)
+    label = cv2.resize(label, dsize=size)
+    return image, label
 
 class Augmenter:
     def __init__(self, cfg, mode="train", is_source=True):
@@ -32,7 +38,7 @@ class Augmenter:
                 al.ColorJitter(p=self.cfg.AUG.JITTER_PROB),
                 al.Flip(p=self.cfg.AUG.FLIP_PROB)
             ], p=self.cfg.AUG.PROB)
-            result = trans(image, label)
+            result = trans(image=image, mask=label)
             image, label = result["image"], result["mask"]
             return image, label
         return F
