@@ -146,6 +146,16 @@ class Decoder(nn.Module):
 
         return out_0, out_1, out_2, out_3, out_4
 
+class AttnEfficientNetUnet(nn.Module):
+    def __init__(self, backbone_name="efficientnet-b0", num_classes=2):
+        super().__init__()
+        self.encoder = Encoder(backbone_name=backbone_name, num_classes=num_classes)
+        self.decoder = Decoder(backbone_name=backbone_name, num_classes=num_classes)
+
+    def forward(self, inputs):
+        endpoints = self.encoder(inputs)
+        outputs = self.decoder(endpoints)
+        return outputs
 
 def test_1():
     x = torch.randn((5, 3, 224, 224))
