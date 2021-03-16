@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from core.configs import cfg
 from core.datasets.build import build_dataset
 from core.combos.aspp_fada import AsppFada
+from core.combos.attn_fada import AttnFada
 
 def main(name, cfg, local_rank, distributed):
     src_train_data = build_dataset(cfg, mode='train', is_source=True)
@@ -42,6 +43,8 @@ def main(name, cfg, local_rank, distributed):
         trainer = AsppFada(name, cfg, src_train_loader, tgt_train_loader, local_rank)
     elif name == "pranet_fada":
         trainer = PraNetFada()
+    elif name == "attn_fada":
+        trainer = AttnFada(name, cfg, src_train_loader, tgt_train_loader, local_rank)
     trainer.train()
 
 if __name__ == "__main__":
@@ -90,4 +93,4 @@ if __name__ == "__main__":
     #     logger.info(config_str)
     # logger.info("Running with config:\n{}".format(cfg))
 
-    main("aspp_fada", cfg, args.local_rank, args.distributed)
+    main("attn_fada", cfg, args.local_rank, args.distributed)

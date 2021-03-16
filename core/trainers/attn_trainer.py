@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from base.base_trainer import BaseTrainer
 from core.models.classifiers.attn.eff import Encoder, Decoder, AttnEfficientNetUnet
 from core.models.classifiers.attn.loss import TverskyLoss, CompoundLoss, BinaryCrossEntropyLoss, MultiscaleLoss
-from core.utils.adapt_lr import GradualWarmupScheduler
+from core.utils.adapt_lr import GradualWarmupScheduler, CosineAnnealingWarmupLR
 from core.utils.utility import generate_scales, probs_to_onehot
 
 class AttnTrainer(BaseTrainer):
@@ -76,10 +76,13 @@ class AttnTrainer(BaseTrainer):
         self.encoder.train()
         self.decoder.train()
 
-        cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_enc, 100, eta_min=0, last_epoch=-1)
-        scheduler_enc = GradualWarmupScheduler(self.optimizer_enc, multiplier=8, total_epoch=5, after_scheduler=cosine_scheduler)
-        cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_dec, 100, eta_min=0, last_epoch=-1)
-        scheduler_dec = GradualWarmupScheduler(self.optimizer_dec, multiplier=8, total_epoch=5, after_scheduler=cosine_scheduler)
+        # cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_enc, 100, eta_min=0, last_epoch=-1)
+        # scheduler_enc = GradualWarmupScheduler(self.optimizer_enc, multiplier=8, total_epoch=5, after_scheduler=cosine_scheduler)
+        # cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_dec, 100, eta_min=0, last_epoch=-1)
+        # scheduler_dec = GradualWarmupScheduler(self.optimizer_dec, multiplier=8, total_epoch=5, after_scheduler=cosine_scheduler)
+        
+        scheduler_enc = CosineAnnealingWarmupLR(self.optimizer_enc, T_max=50, warmup_epochs=5)
+        scheduler_dec = CosineAnnealingWarmupLR(self.optimizer_dec, T_max=50, warmup_epochs=5)
 
         for epoch in range(self.start_epoch, self.cfg.SOLVER.EPOCHS+1):
             self._train_epoch(epoch)
@@ -172,8 +175,9 @@ class AttnWrapTrainer(BaseTrainer):
 
         self.model.train()
 
-        cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, 100, eta_min=0, last_epoch=-1)
-        scheduler = GradualWarmupScheduler(self.optimizer, multiplier=8, total_epoch=5, after_scheduler=cosine_scheduler)
+        # cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, 100, eta_min=0, last_epoch=-1)
+        # scheduler = GradualWarmupScheduler(self.optimizer, multiplier=8, total_epoch=5, after_scheduler=cosine_scheduler)
+        scheduler = CosineAnnealingWarmupLR(self.optimizer, T_max=50, warmup_epochs=5)
 
         for epoch in range(self.start_epoch, self.cfg.SOLVER.EPOCHS+1):
             self._train_epoch(epoch)
