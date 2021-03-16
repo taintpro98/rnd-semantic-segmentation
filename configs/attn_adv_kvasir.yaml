@@ -4,6 +4,7 @@ MODEL:
   NUM_CLASSES: 2
 DATASETS:
   SOURCE_TRAIN: "polyp_train"
+  TARGET_TRAIN: "bli_train"
   TEST: "polyp_val"
   CROSS_VAL: 0
 INPUT:
