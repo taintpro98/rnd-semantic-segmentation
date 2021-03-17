@@ -26,7 +26,7 @@ from core.configs import cfg
 from core.datasets.build import build_dataset, transform
 from core.models.build import build_model, build_feature_extractor, build_classifier
 # from core.solver import adjust_learning_rate
-from core.utils.utility import mkdir, AverageMeter, intersectionAndUnionGPU, get_color_pallete, inference, strip_prefix_if_present, load_json, load_text
+from core.utils.utility import mkdir, AverageMeter, intersectionAndUnionGPU, get_color_palette, inference, strip_prefix_if_present, load_json, load_text
 # from core.utils.logger import setup_logger
 # from core.utils.metric_logger import MetricLogger
 from core.models.classifiers.pranet.PraNet_Res2Net import PraNet
@@ -163,12 +163,11 @@ if __name__ == "__main__":
         help="path to config file",
         type=str,
     )
-    parser.add_argument('-c', '--config_path', default='configs/demo_config.json', help='path to config')
+    parser.add_argument('-c', '--config_path', default='renders/bli.json', help='path to config')
 
     args = parser.parse_args()
     config = load_json(args.config_path)
 
-    config_file = "configs/pranet_src_polyp.yaml"
     cfg.merge_from_file(args.config_file)
     # cfg.merge_from_list(None)
     cfg.freeze()
@@ -207,7 +206,7 @@ if __name__ == "__main__":
         for idx, (k, resume) in enumerate(config["weights"].items()):
             output = get_output(cfg, config["name"], resume, image, label)
             pred = get_pred(output)
-            result = get_color_pallete(pred, config["pallete"])
+            result = get_color_palette(pred, config["palette"])
 
             h, w, c = output.shape
             tmp = output.reshape(h*w, c)
@@ -242,7 +241,7 @@ if __name__ == "__main__":
     else:
         for k, resume in config["weights"].items():
             pred = get_pred(resume)
-            res = get_color_pallete(pred, config["pallete"])
+            res = get_color_palette(pred, config["palette"])
             samples.append(res)
         
         n_rows = 1

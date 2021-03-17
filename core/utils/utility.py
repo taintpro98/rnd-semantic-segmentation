@@ -188,12 +188,12 @@ def inference(feature_extractor, classifier, image, label, flip=True):
         output = output[0]
     return output.unsqueeze(dim=0)
 
-def get_color_pallete(pred, pallete):
+def get_color_palette(pred, palette):
     """
         :pred: H * W numpy array with 0 and 1
     """
     label = Image.fromarray(pred.astype('uint8')).convert('P')
-    label.putpalette(pallete)
+    label.putpalette(palette)
     return label
 
 def load_json(json_path):

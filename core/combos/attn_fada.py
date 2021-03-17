@@ -5,7 +5,7 @@ import os
 import torch
 import torch.nn.functional as F
 
-from core.utils.utility import setup_logger
+from core.utils.utility import setup_logger, soft_label_cross_entropy, MetricLogger
 from core.trainers.attn_trainer import AttnTrainer, AttnWrapTrainer
 from core.adapters.fada_adapter import FADAAdapter
 from core.utils.adapt_lr import adjust_learning_rate
@@ -15,9 +15,9 @@ class AttnFada:
         self.cfg = cfg
         self.logger = setup_logger(name, cfg.OUTPUT_DIR, local_rank)
         self.attn = AttnTrainer(name, cfg, src_train_loader, local_rank, self.logger)
-        self.fada = FADAAdapter(cfg, tgt_train_loader, self.aspp.device)
+        self.fada = FADAAdapter(cfg, tgt_train_loader, self.attn.device)
         if cfg.resume:
-            self.fada._load_checkpoint(self.aspp.checkpoint, self.logger)
+            self.fada._load_checkpoint(self.attn.checkpoint, self.logger)
 
     def _save_checkpoint(self, adv_epoch, save_path):
         checkpoint = {
@@ -25,8 +25,8 @@ class AttnFada:
             'iteration': self.iteration, 
             'encoder': self.attn.encoder.state_dict(), 
             'decoder': self.attn.decoder.state_dict(), 
-            'optimizer_enc': self.aspp.optimizer_enc.state_dict(), 
-            'optimizer_dec': self.aspp.optimizer_dec.state_dict(), 
+            'optimizer_enc': self.attn.optimizer_enc.state_dict(), 
+            'optimizer_dec': self.attn.optimizer_dec.state_dict(), 
             'model_D': self.fada.model_D.state_dict(),
             'optimizer_D': self.fada.optimizer_D.state_dict()
         }
@@ -70,14 +70,18 @@ class AttnFada:
                 self.attn.optimizer_dec.zero_grad()
                 self.fada.optimizer_D.zero_grad()
                 src_input = src_input.cuda(non_blocking=True)
-                src_label = src_label.cuda(non_blocking=True).long()
+                src_label = src_label.cuda(non_blocking=True).long() # tensor B x 1 x H x W
+                src_label = src_label.squeeze(1) # tensor B x H x W
                 tgt_input = tgt_input.cuda(non_blocking=True)
 
                 src_size = src_input.shape[-2:]
                 tgt_size = tgt_input.shape[-2:]
 
-                src_fea = self.attn.encoder(src_input)
-                src_pred = self.attn.decoder(src_fea, src_size)
+                src_endpoints = self.attn.encoder(src_input)
+                src_outputs = self.attn.decoder(src_endpoints)
+                src_output = src_outputs[0]
+                src_pred = torch.sigmoid(src_output) # B x C x H x W
+
                 temperature = 1.8
                 src_pred = src_pred.div(temperature)
                 loss_seg = criterion(src_pred, src_label)
@@ -87,28 +91,30 @@ class AttnFada:
                 src_soft_label = F.softmax(src_pred, dim=1).detach()
                 src_soft_label[src_soft_label>0.9] = 0.9
 
-                tgt_fea = self.attn.encoder(tgt_input)
-                tgt_pred = self.attn.decoder(tgt_fea, tgt_size)
+                tgt_endpoints = self.attn.encoder(tgt_input)
+                tgt_outputs = self.attn.decoder(tgt_endpoints)
+                tgt_output = tgt_outputs[0]
+                tgt_pred = torch.sigmoid(tgt_output) # B x C x H x W
                 tgt_pred = tgt_pred.div(temperature)
-                tgt_soft_label = F.softmax(tgt_pred, dim=1)
 
+                tgt_soft_label = F.softmax(tgt_pred, dim=1)
                 tgt_soft_label = tgt_soft_label.detach()
                 tgt_soft_label[tgt_soft_label>0.9] = 0.9
 
-                tgt_D_pred = self.fada.model_D(tgt_fea, tgt_size)
+                tgt_D_pred = self.fada.model_D(tgt_endpoints["reduction_5"] , tgt_size)
                 loss_adv_tgt = 0.001*soft_label_cross_entropy(tgt_D_pred, torch.cat((tgt_soft_label, torch.zeros_like(tgt_soft_label)), dim=1))
                 loss_adv_tgt.backward()
 
-                self.attn.encoder.step()
-                self.attn.decoder.step()
+                self.attn.optimizer_enc.step()
+                self.attn.optimizer_dec.step()
 
                 self.fada.optimizer_D.zero_grad()
 
-                src_D_pred = self.fada.model_D(src_fea.detach(), src_size)
+                src_D_pred = self.fada.model_D(src_endpoints["reduction_5"].detach(), src_size)
                 loss_D_src = 0.5*soft_label_cross_entropy(src_D_pred, torch.cat((src_soft_label, torch.zeros_like(src_soft_label)), dim=1))
                 loss_D_src.backward()
 
-                tgt_D_pred = self.fada.model_D(tgt_fea.detach(), tgt_size)
+                tgt_D_pred = self.fada.model_D(tgt_endpoints["reduction_5"].detach(), tgt_size)
                 loss_D_tgt = 0.5*soft_label_cross_entropy(tgt_D_pred, torch.cat((torch.zeros_like(tgt_soft_label), tgt_soft_label), dim=1))
                 loss_D_tgt.backward()
 

@@ -1,0 +1,25 @@
+{
+    "root": "runs",
+    "name": "pranet_test",
+    "tensorboard": true,
+    "labeled": true,
+    "sample":{
+        "img_path": "demo_image.txt",
+        "lab_path": "demo_groundtruth.txt"
+    },
+    "weights":{
+        "src_model": "/Users/macbook/Documents/AI/topics/DomainAdaptation/weights/pranet/PraNet-4.pth"
+    },
+    "palette": [
+        0, 0, 0,
+        255, 255, 255
+    ],
+    "id_to_trainid": {
+        "0": 0,
+        "1": 1
+    },
+    "trainid2name": {
+        "0": "background",
+        "1": "polyp"
+    }
+}

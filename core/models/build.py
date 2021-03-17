@@ -17,7 +17,7 @@ def build_feature_extractor(cfg):
     elif backbone_name.startswith('vgg'):
         backbone = vgg_feature_extractor(backbone_name, pretrained_weights=cfg.MODEL.WEIGHTS, aux=False, pretrained_backbone=True, freeze_bn=cfg.MODEL.FREEZE_BN)
     else:
-        raise NotImplementError
+        raise NotImplementedError
     return backbone
 
 def build_classifier(cfg):
@@ -39,6 +39,10 @@ def build_adversarial_discriminator(cfg, num_features=None, mid_nc=256):
     elif backbone_name.startswith('resnet'):
         if num_features is None:
             num_features = 2048
+        model_D = PixelDiscriminator(num_features, mid_nc, num_classes=cfg.MODEL.NUM_CLASSES)
+    elif backbone_name.startswith('efficientnet'):
+        if num_features is None:
+            num_features = 1408
         model_D = PixelDiscriminator(num_features, mid_nc, num_classes=cfg.MODEL.NUM_CLASSES)
     else:
         raise NotImplementedError

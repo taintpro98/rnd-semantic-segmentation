@@ -1,5 +1,5 @@
 MODEL:
-  NAME: "attn"
+  NAME: "attn_efficientnet"
   FREEZE_BN: True
   NUM_CLASSES: 2
 DATASETS:
@@ -24,6 +24,7 @@ AUG:
 SOLVER:
   BASE_LR: 1e-3
   WEIGHT_DECAY: 1e-4
+  BASE_LR_D: 1e-4
   BATCH_SIZE: 20
   EPOCHS: 100
   CHECKPOINT_PERIOD: 5
