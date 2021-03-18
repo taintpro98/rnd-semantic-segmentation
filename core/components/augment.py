@@ -31,16 +31,20 @@ class Augmenter:
         raise AttributeError("No Augmenter was required !")
 
     def attn_trans(self):
-        def F(image, label):
-            trans = al.Compose([
-                al.MotionBlur(p=self.cfg.AUG.BLUR_PROB),
-                al.Rotate(p=self.cfg.AUG.ROTATE_PROB),
-                al.ColorJitter(p=self.cfg.AUG.JITTER_PROB),
-                al.Flip(p=self.cfg.AUG.FLIP_PROB)
-            ], p=self.cfg.AUG.PROB)
-            result = trans(image=image, mask=label)
-            image, label = result["image"], result["mask"]
-            return image, label
+        if self.mode == "train":
+            def F(image, label):
+                trans = al.Compose([
+                    al.MotionBlur(p=self.cfg.AUG.BLUR_PROB),
+                    al.Rotate(p=self.cfg.AUG.ROTATE_PROB),
+                    al.ColorJitter(p=self.cfg.AUG.JITTER_PROB),
+                    al.Flip(p=self.cfg.AUG.FLIP_PROB)
+                ], p=self.cfg.AUG.PROB)
+                result = trans(image=image, mask=label)
+                image, label = result["image"], result["mask"]
+                return image, label
+        elif self.mode == "test":
+            def F(image, label):
+                return image, label
         return F
 
     def pra_trans(self):

@@ -1,11 +1,6 @@
 import argparse
 import os
 import cv2
-# import json
-# import datetime
-# import logging
-# import time
-# import math
 import numpy as np
 from collections import OrderedDict
 import re
@@ -16,20 +11,22 @@ import torch
 import torchvision
 import torch.nn.functional as F
 import torchvision.transforms as transforms
+from core.datasets import transform
 
 # from skimage.color import label2rgb
 from PIL import Image
+from skimage.io import imread
+
 # from tensorboardX import SummaryWriter
 from torch.utils.tensorboard import SummaryWriter
 
 from core.configs import cfg
-from core.datasets.build import build_dataset, transform
-from core.models.build import build_model, build_feature_extractor, build_classifier
-# from core.solver import adjust_learning_rate
-from core.utils.utility import mkdir, AverageMeter, intersectionAndUnionGPU, get_color_palette, inference, strip_prefix_if_present, load_json, load_text
+from core.datasets.build import build_dataset
+from core.models.build import build_feature_extractor, build_classifier
+from core.utils.utility import mkdir, get_color_palette, inference, strip_prefix_if_present, load_json, load_text
 # from core.utils.logger import setup_logger
-# from core.utils.metric_logger import MetricLogger
 from core.models.classifiers.pranet.PraNet_Res2Net import PraNet
+from core.models.classifiers.attn.eff import Encoder, Decoder, AttnEfficientNetUnet
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -37,6 +34,13 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 #             'green', 'indigo', 'darkorange', 'cyan', 'pink', 
 #             'yellowgreen', 'black', 'darkgreen', 'brown', 'gray',
 #             'purple', 'darkviolet')
+
+# def convert_pred2rgb(pred):
+#     output = pred.max(1)[1]
+#     output = output.numpy()
+#     output = output.transpose(1,2,0)
+#     label = output.squeeze(2)
+#     return label2rgb(label)
 
 def matplotlib_imshow(img, one_channel=False):
     if one_channel:
@@ -70,15 +74,19 @@ def dump_pr_curve(pred, label, id2name, writer):
         predictions = pred[:, clss]
         writer.add_pr_curve(id2name[str(clss)], labels, predictions, clss)
 
-def build_transform(name, cfg):
+def build_transform(name, cfg, img_path, lab_path):
     w, h = cfg.INPUT.INPUT_SIZE_TEST
-    if name == "aspp":
+    if name.startswith("aspp"):
         trans = transform.Compose([
             transform.Resize((h, w), resize_label=False),
             transform.ToTensor(),
             transform.Normalize(mean=cfg.INPUT.PIXEL_MEAN, std=cfg.INPUT.PIXEL_STD, to_bgr255=cfg.INPUT.TO_BGR255)
         ])
-    elif name == "pranet":
+        image = Image.open(img_path).convert('RGB')
+        label = np.array(Image.open(lab_path), dtype=np.float32) if config["labeled"] else np.zeros((height, width))
+        
+        image, label = trans(image, label)
+    elif name.startswith("pranet"):
         def trans(image, label):
             img_transform = transforms.Compose([
             transforms.Resize((w, h)),
@@ -87,10 +95,20 @@ def build_transform(name, cfg):
             gt_transform = transforms.ToTensor()
             image = img_transform(image)
             return image, label
-    return trans
+        image = imread(img_path)
+        label = imread(lab_path)
+        image, label = trans(image, label)
+    elif name.startswith("attn"):
+        image = imread(img_path)
+        label = imread(lab_path) if config["labeled"] else np.zeros((image.shape[0], image.shape[1]))
+        image = cv2.resize(image, dsize=(w, h))  
+        image = torch.from_numpy(image).permute(2, 0, 1).float() / 255.
+
+    image = image.unsqueeze(0)
+    return image, label
 
 def build_model(cfg, name, resume):
-    if name == "aspp":
+    if name.startswith('aspp'):
         feature_extractor = build_feature_extractor(cfg)
         feature_extractor.to(device)
 
@@ -105,19 +123,23 @@ def build_model(cfg, name, resume):
         classifier_weights = strip_prefix_if_present(checkpoint['classifier'], 'module.')
         classifier.load_state_dict(classifier_weights)
         return feature_extractor, classifier
-    elif name == "pranet":
+    elif name.startswith('pranet'):
         model = PraNet()
         model.load_state_dict(torch.load(resume, map_location=device))
         model.to(device)
         model.eval()
         return model
-
-# def convert_pred2rgb(pred):
-#     output = pred.max(1)[1]
-#     output = output.numpy()
-#     output = output.transpose(1,2,0)
-#     label = output.squeeze(2)
-#     return label2rgb(label)
+    elif name.startswith('attn'):
+        encoder = Encoder(backbone_name="efficientnet-b2")
+        decoder = Decoder(backbone_name="efficientnet-b2")
+        encoder.to(device)
+        decoder.to(device)
+        checkpoint = torch.load(resume, map_location=device)
+        encoder.load_state_dict(checkpoint['encoder'])
+        decoder.load_state_dict(checkpoint['decoder'])
+        encoder.eval()
+        decoder.eval()
+        return encoder, decoder
 
 def get_output(cfg, name, resume, image, label):
     """
@@ -125,15 +147,14 @@ def get_output(cfg, name, resume, image, label):
         :return: numpy array H x W x C
     """
     image = image.to(device)
-    if name == "aspp":
+    if name.startswith("aspp"):
         feature_extractor, classifier = build_model(cfg, name, resume)
         output = inference(feature_extractor, classifier, image, label, flip=False) # tensor (B=1) x C x H x W    
         # pred = output.max(1)[1]
         output = output.cpu().numpy()
         output = output.transpose(0,2,3,1) 
         output = output.squeeze(0) # H * W * C numpy array with scores
-        return output
-    elif name == "pranet":
+    elif name.startswith("pranet"):
         gt = np.asarray(label, np.float32)
         gt /= (gt.max() + 1e-8)
         model = build_model(cfg, name, resume)
@@ -144,7 +165,17 @@ def get_output(cfg, name, resume, image, label):
         output = output.sigmoid().data.cpu().numpy().squeeze()
         output = (output - output.min()) / (output.max() - output.min() + 1e-8)
         output = np.stack([1-output, output], axis=2) # create a H x W x 2 numpy array with 0 background and 1 polyp
-        return output
+    elif name.startswith("attn"):
+        encoder, decoder = build_model(cfg, name, resume)
+        endpoints = encoder(image)
+        outputs = decoder(endpoints) 
+        output = outputs[0]
+        output = F.interpolate(output, size=label.shape, mode='bilinear', align_corners=True) # resize output to original size
+        output = torch.sigmoid(output)  # tensor (B=1) x C x H x W
+        output = output.cpu().detach().numpy() # detach to unable grad ???
+        output = output.transpose(0,2,3,1) # numpy array (B=1) x H x W x C
+        output = output.squeeze(0) # H * W * C numpy array with scores
+    return output
 
 def get_pred(output):
     """
@@ -163,7 +194,7 @@ if __name__ == "__main__":
         help="path to config file",
         type=str,
     )
-    parser.add_argument('-c', '--config_path', default='renders/bli.json', help='path to config')
+    parser.add_argument('-c', '--config_path', default='renders/bli.json', help='path to config', type=str)
 
     args = parser.parse_args()
     config = load_json(args.config_path)
@@ -178,18 +209,12 @@ if __name__ == "__main__":
     lab_paths = load_text(config["sample"]["lab_path"])
     samples = list()
 
-    transform = build_transform(config["name"], cfg)
     big_preds = [None] * len(config["weights"])
     big_label = None
     for img_path, lab_path in zip(img_paths, lab_paths):
         res = list()
-
-        image = Image.open(img_path).convert('RGB')
-        height, width, _ = np.array(image).shape
-        label = np.array(Image.open(lab_path), dtype=np.float32) if config["labeled"] else np.zeros((height, width))
-        if transform is not None:
-            image, label = transform(image, label)
-        image = image.unsqueeze(0)
+        image, label = build_transform(config["name"], cfg, img_path, lab_path)
+        height, width = label.shape
 
         img = Image.open(img_path).convert('RGB') 
         lab = Image.open(lab_path) if config["labeled"] else Image.fromarray(np.zeros((height, width)))

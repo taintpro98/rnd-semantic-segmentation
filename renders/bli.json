@@ -1,14 +1,15 @@
 {
     "root": "runs",
-    "name": "attn_test",
+    "name": "attn",
     "tensorboard": true,
     "labeled": false,
     "sample":{
-        "img_path": "demo_image.txt",
-        "lab_path": "demo_groundtruth.txt"
+        "img_path": "renders/demo_image.txt",
+        "lab_path": "renders/demo_groundtruth.txt"
     },
     "weights":{
-        "src_model": "/Users/macbook/Documents/AI/topics/DomainAdaptation/weights/pranet/PraNet-4.pth"
+        "src_model": "/home/admin_mcn/taint/weights/kvasir/attn/f0-16-3-2021/Attn-70.pth",
+        "adv_model": "/home/admin_mcn/taint/code/rnd-semantic-segmentation/results/fada_attn_kvasir2bli/AttnFada-100.pth"
     },
     "palette": [
         0, 0, 0,
