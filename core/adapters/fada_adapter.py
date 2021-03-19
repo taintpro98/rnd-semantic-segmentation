@@ -22,7 +22,6 @@ class FADAAdapter:
         self.model_D.to(self.device)
 
         self.optimizer_D = torch.optim.Adam(self.model_D.parameters(), lr=self.cfg.SOLVER.BASE_LR_D, betas=(0.9, 0.99))
-        self.optimizer_D.zero_grad()
 
     def _load_checkpoint(self, checkpoint, logger):
         if "model_D" in checkpoint:

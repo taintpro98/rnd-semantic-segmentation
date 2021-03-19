@@ -1,6 +1,5 @@
 import argparse
 import os
-from collections import OrderedDict
 
 import torch
 import torch.nn.functional as F
@@ -9,11 +8,12 @@ from core.configs import cfg
 from core.datasets.build import build_dataset, build_collate_fn
 from core.combos.aspp_fada import AsppFada
 from core.combos.attn_fada import AttnFada
+from core.datasets.func import collate_fn
 
 def main(name, cfg, local_rank, distributed):
     src_train_data = build_dataset(cfg, mode='train', is_source=True)
     tgt_train_data = build_dataset(cfg, mode='train', is_source=False)
-    collate_fn = build_collate_fn(cfg)
+    src_collate_fn = build_collate_fn(cfg)
 
     if distributed:
         src_train_sampler = torch.utils.data.distributed.DistributedSampler(src_train_data)
@@ -28,7 +28,7 @@ def main(name, cfg, local_rank, distributed):
         shuffle=(src_train_sampler is None), 
         num_workers=4, 
         pin_memory=True, 
-        collate_fn=collate_fn,
+        collate_fn=src_collate_fn,
         sampler=src_train_sampler, 
         drop_last=True
     )
@@ -38,6 +38,7 @@ def main(name, cfg, local_rank, distributed):
         shuffle=(tgt_train_sampler is None), 
         num_workers=4, 
         pin_memory=True, 
+        collate_fn=collate_fn,
         sampler=tgt_train_sampler, 
         drop_last=True
     )

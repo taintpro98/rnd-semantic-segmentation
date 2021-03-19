@@ -2,8 +2,64 @@ import os
 import numpy as np
 from PIL import Image
 from glob import glob
+from skimage.io import imread
 
 from torch.utils.data import Dataset
+
+from core.components.augment import cv2_resize
+
+class KvasirFoldDataset(Dataset):
+    def __init__(self, cfg, data_root, mode="train", cross_val=0, transform=None, debug=False):
+        super(KvasirFoldDataset, self).__init__()
+        self.cfg = cfg
+        self.data_root = data_root 
+        self.mode = mode
+        self.transform = transform
+        self.debug = debug
+               
+        self.image_paths = []
+
+        kfolds = glob(data_root + "/*/")
+        if mode == "train":
+            for kfold_path in kfolds:
+                if str(cross_val) not in os.path.basename(kfold_path[:-1]):
+                    self.image_paths += [img_path for img_path in glob(os.path.join(kfold_path, 'images') + '/*.png')]
+        else:
+            for kfold_path in kfolds:
+                if str(cross_val) in os.path.basename(kfold_path[:-1]):
+                    self.image_paths += [img_path for img_path in glob(os.path.join(kfold_path, 'images') + '/*.png')]
+        
+    def __len__(self):
+        return len(self.image_paths)
+
+    def __getitem__(self, index):
+        """
+        :param index: Index of sample
+        :return: 
+            :image: numpy array (H x W x 3)
+            :mask: numpy array (H x W x 3)
+            :name: string 
+        """
+        if self.debug:
+            index = 0
+
+        img_name = os.path.basename(self.image_paths[index])
+        img_dir = os.path.dirname(os.path.dirname(self.image_paths[index]))
+
+        datafile = {
+            'img': self.image_paths[index],
+            'label': os.path.join(img_dir, 'masks', img_name),
+            'name': img_name[:-4]
+        }
+        image = imread(datafile["img"])
+        mask = imread(datafile["label"])
+        name = datafile["name"]
+
+        if self.transform is not None:
+            image, mask = self.transform(image, mask)
+        if self.cfg.INPUT.SOURCE_INPUT_SIZE_TRAIN is not None:
+            image, mask = cv2_resize(image, mask, self.cfg.INPUT.SOURCE_INPUT_SIZE_TRAIN)
+        return image, mask, name
 
 class KvasirDataSet(Dataset):
     def __init__(self, data_root, num_classes=2, mode="train", cross_val=0, transform=None, ignore_label=255, debug=False):
@@ -21,10 +77,6 @@ class KvasirDataSet(Dataset):
                 if str(cross_val) in os.path.basename(kfold_path[:-1]):
                     self.image_paths += [img_path for img_path in glob(os.path.join(kfold_path, 'images') + '/*.png')]
 
-        self.trainid2name = {
-            0: "background",
-            1: "polyp"
-        }
         self.id_to_trainid = {
             0: 0, 1: 1
         }
@@ -61,95 +113,3 @@ class KvasirDataSet(Dataset):
             image, label = self.transform(image, label)
 
         return image, label, name
-
-# class KvasirFoldDataset(Dataset):
-#     def __init__(self, root_dir: str,
-#         shape=(512, 512),
-#         image_dir="images",
-#         mask_dir="masks",
-#         return_paths=False,
-#         augmenter: Augmenter = Augmenter()
-#     ):
-#         self.root_dir = root_dir
-#         self.shape = shape
-#         self.augmenter = augmenter
-#         self.return_paths = return_paths
-
-#         self.__image_dir = image_dir
-#         self.__mask_dir = mask_dir
-#         self.__scan_files()
-
-#     def __scan_files(self):
-#         self.__pairs = []
-
-#         for image_name in os.listdir(self.image_dir):
-#             ext = image_name.split('.')[-1]
-#             image_path = os.path.join(self.image_dir, image_name)
-#             mask_path = os.path.join(self.mask_dir, image_name)
-
-#             if ext not in ('jpg', 'png'):
-#                 logger.warning(f'Skipping file {image_path}')
-#                 continue
-
-#             if not os.path.exists(mask_path):
-#                 logger.warning(f'No mask found for {image_path}')
-#                 continue
-
-#             self.__pairs.append({
-#                 'image': image_path,
-#                 'mask': mask_path
-#             })
-
-#     def __len__(self) -> int:
-#         return len(self.__pairs)
-
-#     def __getitem__(self, index: int):
-#         pair = self.__pairs[index]
-#         image_path, mask_path = pair['image'], pair['mask']
-#         resizer = ttf.Resize(self.shape)
-
-#         # Read images
-#         image_t = read_image(image_path)
-#         mask_np = self.read_binary_mask(mask_path)
-#         if mask_np is None:
-#             raise ValueError(f"Cannot read file at {mask_path}")
-#         mask_t = torch.from_numpy(mask_np)
-
-#         # Augment first
-#         image_t, mask_t = self.augmenter(image_t, mask_t)
-
-#         # Resize
-#         image_t = resizer(image_t)
-#         mask_t = resizer(mask_t)
-
-#         if not self.return_paths:
-#             return image_t, mask_t
-#         else:
-#             return image_t, mask_t, image_path, mask_path
-
-#     @property
-#     def image_dir(self) -> str:
-#         return os.path.join(self.root_dir, self.__image_dir)
-
-#     @property
-#     def mask_dir(self) -> str:
-#         return os.path.join(self.root_dir, self.__mask_dir)
-
-#     @property
-#     def meta_path(self) -> str:
-#         return os.path.join(self.root_dir, "meta.yml")
-
-#     @staticmethod
-#     def read_binary_mask(path):
-#         mask = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
-#         mask = mask * 255
-#         mask = np.stack([mask, mask, mask])
-#         return mask
-
-
-# class KvasirMultiFoldDataset(ConcatDataset):
-#     def __init__(self, root_dirs: List[str], **kwargs):
-#         super().__init__([
-#             KvasirFoldDataset(root_dir, **kwargs)
-#             for root_dir in root_dirs
-#         ])

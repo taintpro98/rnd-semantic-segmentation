@@ -9,46 +9,41 @@ from albumentations.augmentations import transforms
 from skimage.io import imread
 
 class BLIDataset(Dataset):
-    def __init__(self, cfg, data_root, trainsize=352, num_classes=2, mode="train", transform=None, ignore_label=255, debug=False):
+    def __init__(self, cfg, data_root, mode="train", transform=None, debug=False):
         super(BLIDataset, self).__init__()
         self.cfg = cfg
+        self.data_root = data_root 
         self.mode = mode
-        self.trainsize = trainsize
-        self.data_root = data_root
+        self.transform = transform
+        self.debug = debug
+
         self.image_paths = list()
-        self.trainid2name = {
-            0: "background",
-            1: "polyp"
-        }
         self.id_to_trainid = {
             0: 0, 1: 1
         }
         self.image_paths += [img_path for img_path in glob(os.path.join(data_root, 'train') + '/*.*') if img_path.endswith("JPG") or img_path.endswith("jpg") or img_path.endswith("png")]
 
-        self.debug = debug
-        self.ignore_label = ignore_label
-        self.transform = transform
-
     def __len__(self):
         return len(self.image_paths)
 
     def __getitem__(self, index):
+        if self.debug:
+            index = 0
+
         img_name = os.path.basename(self.image_paths[index])
         datafile = {
             'img': self.image_paths[index],
             'label': None,
             'name': img_name[:-4]
         }
-        # image = Image.open(datafile['img']).convert('RGB')
-        image = imread(datafile["img"])
+        image = imread(datafile["img"]) # numpy array but the photo doesn't look like normal one
         # mask = imread(datafile["label"])
-        image, _ = self._transform(image=image, label=image)
+        name = datafile["name"]
 
-        image = image.astype('float32') / 255
-        image = image.transpose((2, 0, 1))
-
-        name = datafile['name']
-
+        if self.transform is not None:
+            image, _ = self.transform(image, image)
+        if self.cfg.INPUT.TARGET_INPUT_SIZE_TRAIN is not None:
+            image, _ = cv2_resize(image, None, self.cfg.INPUT.TARGET_INPUT_SIZE_TRAIN)
         return image, 0, name
 
     def _transform(self, image, label):

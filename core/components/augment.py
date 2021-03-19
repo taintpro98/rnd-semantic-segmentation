@@ -11,6 +11,8 @@ from core.datasets import transform
 
 def cv2_resize(image, label, size=(512, 512)):
     image = cv2.resize(image, dsize=size)
+    if label is None:
+        return image, None
     label = cv2.resize(label, dsize=size)
     return image, label
 
@@ -31,7 +33,11 @@ class Augmenter:
         raise AttributeError("No Augmenter was required !")
 
     def attn_trans(self):
+        def f(image, label):
+            return image, label
         if self.mode == "train":
+            if not self.is_source:
+                return f
             def F(image, label):
                 trans = al.Compose([
                     al.MotionBlur(p=self.cfg.AUG.BLUR_PROB),
@@ -42,10 +48,9 @@ class Augmenter:
                 result = trans(image=image, mask=label)
                 image, label = result["image"], result["mask"]
                 return image, label
+            return F
         elif self.mode == "test":
-            def F(image, label):
-                return image, label
-        return F
+            return f
 
     def pra_trans(self):
         def F(image, label):

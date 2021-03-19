@@ -23,7 +23,7 @@ def attn_collate_fn(batch):
     # ])(masks)
     return images, masks, names
 
-def pra_collate_fn(batch):
+def collate_fn(batch):
     """
     :param batch: 
     :return:
@@ -35,10 +35,12 @@ def pra_collate_fn(batch):
     images = images.permute(0, 3, 1, 2) # tensor B x 3 x H x W
     images = images.float() / 255.
 
+    if np.isscalar(masks[0]):
+        return images, 0, names
+
     masks = torch.stack([
         torch.from_numpy(mask[:,:,np.newaxis]) for mask in masks
     ], 0) # tensor B x H x W x 1
     masks = masks.long()
     masks = masks.permute(0, 3, 1, 2) # tensor B x 1 x H x W
-
     return images, masks, names

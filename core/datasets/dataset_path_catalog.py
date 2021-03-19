@@ -3,8 +3,7 @@ from .cityscapes import cityscapesDataSet
 # from .cityscapes_self_distill import cityscapesSelfDistillDataSet
 # from .synthia import synthiaDataSet
 from .gta5 import GTA5DataSet
-from .kvasir import KvasirDataSet
-from .polyp import PolypDataset
+from .kvasir import KvasirDataSet, KvasirFoldDataset
 from .bli import BLIDataset
 
 class DatasetCatalog(object):
@@ -97,7 +96,7 @@ class DatasetCatalog(object):
                 root=os.path.join(data_dir, attrs["data_dir"]),
                 data_list=os.path.join(data_dir, attrs["data_list"]),
             )
-            return PolypDataset(cfg, args["root"], mode=mode, cross_val=cross_val, trainsize=cfg.INPUT.TRAINSIZE, transform=transform)
+            return KvasirFoldDataset(cfg, args["root"], mode=mode, cross_val=cross_val, transform=transform)
         elif "bli" in name:
             data_dir = DatasetCatalog.DATASET_DIR
             attrs = DatasetCatalog.DATASETS[name]
@@ -105,6 +104,6 @@ class DatasetCatalog(object):
                 root=os.path.join(data_dir, attrs["data_dir"]),
                 data_list=os.path.join(data_dir, attrs["data_list"]),
             )
-            return BLIDataset(cfg, args["root"], trainsize=cfg.INPUT.TRAINSIZE, num_classes=num_classes, mode=mode, transform=transform)
+            return BLIDataset(cfg, args["root"], mode=mode, transform=transform)
 
         raise RuntimeError("Dataset not available: {}".format(name))

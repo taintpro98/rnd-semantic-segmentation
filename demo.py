@@ -96,7 +96,7 @@ def build_transform(name, cfg, img_path, lab_path):
             image = img_transform(image)
             return image, label
         image = imread(img_path)
-        label = imread(lab_path)
+        label = imread(lab_path) if config["labeled"] else np.zeros((image.shape[0], image.shape[1]))
         image, label = trans(image, label)
     elif name.startswith("attn"):
         image = imread(img_path)

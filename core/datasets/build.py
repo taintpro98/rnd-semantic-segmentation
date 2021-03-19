@@ -5,8 +5,8 @@ from core.datasets.func import *
 def build_collate_fn(cfg):
     if cfg.AUG.COLLATE == "attn":
         return attn_collate_fn
-    elif cfg.AUG.COLLATE == "pra":
-        return pra_collate_fn
+    elif cfg.AUG.COLLATE == "pranet":
+        return pranet_collate_fn
     else:
         return None
 

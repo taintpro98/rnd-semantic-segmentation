@@ -5,10 +5,11 @@ import os
 import torch
 import torch.nn.functional as F
 
-from core.utils.utility import setup_logger, soft_label_cross_entropy, MetricLogger
+from core.utils.utility import setup_logger, soft_label_cross_entropy, MetricLogger, generate_scales
 from core.trainers.attn_trainer import AttnTrainer, AttnWrapTrainer
 from core.adapters.fada_adapter import FADAAdapter
-from core.utils.adapt_lr import adjust_learning_rate
+from core.utils.adapt_lr import adjust_learning_rate, GradualWarmupScheduler, CosineAnnealingWarmupLR
+from core.models.classifiers.attn.loss import TverskyLoss, CompoundLoss, BinaryCrossEntropyLoss, MultiscaleLoss
 
 class AttnFada:
     def __init__(self, name, cfg, src_train_loader, tgt_train_loader, local_rank):
@@ -36,8 +37,15 @@ class AttnFada:
         save_to_disk = self.attn.local_rank == 0
         self.iteration = (self.fada.start_adv_epoch - 1) * min(len(self.attn.train_loader), len(self.fada.tgt_train_loader)) 
 
-        criterion = torch.nn.CrossEntropyLoss(ignore_index=255)
-        bce_loss = torch.nn.BCELoss(reduction='none')
+        # criterion = torch.nn.CrossEntropyLoss(ignore_index=255)
+        # bce_loss = torch.nn.BCELoss(reduction='none')
+
+        criterion = MultiscaleLoss(
+            CompoundLoss([
+                TverskyLoss(),
+                BinaryCrossEntropyLoss()
+            ])
+        )
 
         max_iter = self.cfg.SOLVER.EPOCHS * min(len(self.attn.train_loader), len(self.fada.tgt_train_loader))
         source_label = 0
@@ -52,23 +60,28 @@ class AttnFada:
         start_training_time = time.time()
         end = time.time()
 
+        scheduler_enc = CosineAnnealingWarmupLR(self.attn.optimizer_enc, T_max=50, warmup_epochs=5)
+        scheduler_dec = CosineAnnealingWarmupLR(self.attn.optimizer_dec, T_max=50, warmup_epochs=5)
+        scheduler_D = CosineAnnealingWarmupLR(self.fada.optimizer_D, T_max=50, warmup_epochs=5)
+
         for epoch in range(self.fada.start_adv_epoch, self.cfg.SOLVER.EPOCHS+1):
             for i, ((src_input, src_label, src_name), (tgt_input, _, _)) in enumerate(zip(self.attn.train_loader, self.fada.tgt_train_loader)):
                 data_time = time.time() - end
                 
                 self.iteration+=1
-                current_lr = adjust_learning_rate(self.cfg.SOLVER.LR_METHOD, self.cfg.SOLVER.BASE_LR, self.iteration, max_iter, power=self.cfg.SOLVER.LR_POWER)
-                current_lr_D = adjust_learning_rate(self.cfg.SOLVER.LR_METHOD, self.cfg.SOLVER.BASE_LR_D, self.iteration, max_iter, power=self.cfg.SOLVER.LR_POWER)
-                for index in range(len(self.attn.optimizer_enc.param_groups)):
-                    self.attn.optimizer_enc.param_groups[index]['lr'] = current_lr
-                for index in range(len(self.attn.optimizer_dec.param_groups)):
-                    self.attn.optimizer_dec.param_groups[index]['lr'] = current_lr*10
+                # current_lr = adjust_learning_rate(self.cfg.SOLVER.LR_METHOD, self.cfg.SOLVER.BASE_LR, self.iteration, max_iter, power=self.cfg.SOLVER.LR_POWER)
+                # current_lr_D = adjust_learning_rate(self.cfg.SOLVER.LR_METHOD, self.cfg.SOLVER.BASE_LR_D, self.iteration, max_iter, power=self.cfg.SOLVER.LR_POWER)
+                # for index in range(len(self.attn.optimizer_enc.param_groups)):
+                #     self.attn.optimizer_enc.param_groups[index]['lr'] = current_lr
+                # for index in range(len(self.attn.optimizer_dec.param_groups)):
+                #     self.attn.optimizer_dec.param_groups[index]['lr'] = current_lr*10
                 for index in range(len(self.fada.optimizer_D.param_groups)):
                     self.fada.optimizer_D.param_groups[index]['lr'] = current_lr_D
 
                 self.attn.optimizer_enc.zero_grad()
                 self.attn.optimizer_dec.zero_grad()
                 self.fada.optimizer_D.zero_grad()
+
                 src_input = src_input.cuda(non_blocking=True)
                 src_label = src_label.cuda(non_blocking=True).long() # tensor B x 1 x H x W
                 src_label = src_label.squeeze(1) # tensor B x H x W
@@ -77,32 +90,36 @@ class AttnFada:
                 src_size = src_input.shape[-2:]
                 tgt_size = tgt_input.shape[-2:]
 
+                if self.cfg.MODEL.NUM_CLASSES > 1:
+                    label = F.one_hot(src_label.squeeze(dim=1), self.cfg.MODEL.NUM_CLASSES).permute(0, 3, 1, 2).float()
+                scaled_labels = generate_scales(label, self.attn.decoder.output_scales)
+
                 src_endpoints = self.attn.encoder(src_input)
                 src_outputs = self.attn.decoder(src_endpoints)
                 src_output = src_outputs[0]
-                src_pred = torch.sigmoid(src_output) # B x C x H x W
+                src_output = torch.sigmoid(src_output) # B x C x H x W
 
                 temperature = 1.8
-                src_pred = src_pred.div(temperature)
-                loss_seg = criterion(src_pred, src_label)
+                src_output = src_output.div(temperature)
+                loss_seg = criterion(src_outputs, scaled_labels)
                 loss_seg.backward()
 
                 # generate soft labels
-                src_soft_label = F.softmax(src_pred, dim=1).detach()
+                src_soft_label = F.softmax(src_output, dim=1).detach()
                 src_soft_label[src_soft_label>0.9] = 0.9
 
                 tgt_endpoints = self.attn.encoder(tgt_input)
                 tgt_outputs = self.attn.decoder(tgt_endpoints)
                 tgt_output = tgt_outputs[0]
-                tgt_pred = torch.sigmoid(tgt_output) # B x C x H x W
-                tgt_pred = tgt_pred.div(temperature)
+                tgt_output = torch.sigmoid(tgt_output) # B x C x H x W
+                tgt_output = tgt_output.div(temperature)
 
-                tgt_soft_label = F.softmax(tgt_pred, dim=1)
+                tgt_soft_label = F.softmax(tgt_output, dim=1)
                 tgt_soft_label = tgt_soft_label.detach()
                 tgt_soft_label[tgt_soft_label>0.9] = 0.9
 
-                tgt_D_pred = self.fada.model_D(tgt_endpoints["reduction_5"] , tgt_size)
-                loss_adv_tgt = 0.001*soft_label_cross_entropy(tgt_D_pred, torch.cat((tgt_soft_label, torch.zeros_like(tgt_soft_label)), dim=1))
+                tgt_D_output = self.fada.model_D(tgt_endpoints["reduction_5"] , tgt_size)
+                loss_adv_tgt = 0.001*soft_label_cross_entropy(tgt_D_output, torch.cat((tgt_soft_label, torch.zeros_like(tgt_soft_label)), dim=1))
                 loss_adv_tgt.backward()
 
                 self.attn.optimizer_enc.step()
@@ -114,8 +131,8 @@ class AttnFada:
                 loss_D_src = 0.5*soft_label_cross_entropy(src_D_pred, torch.cat((src_soft_label, torch.zeros_like(src_soft_label)), dim=1))
                 loss_D_src.backward()
 
-                tgt_D_pred = self.fada.model_D(tgt_endpoints["reduction_5"].detach(), tgt_size)
-                loss_D_tgt = 0.5*soft_label_cross_entropy(tgt_D_pred, torch.cat((torch.zeros_like(tgt_soft_label), tgt_soft_label), dim=1))
+                tgt_D_output = self.fada.model_D(tgt_endpoints["reduction_5"].detach(), tgt_size)
+                loss_D_tgt = 0.5*soft_label_cross_entropy(tgt_D_output, torch.cat((torch.zeros_like(tgt_soft_label), tgt_soft_label), dim=1))
                 loss_D_tgt.backward()
 
                 self.fada.optimizer_D.step()
@@ -159,6 +176,9 @@ class AttnFada:
             if epoch % self.cfg.SOLVER.CHECKPOINT_PERIOD == 0 and save_to_disk:
                 filename = os.path.join(self.cfg.OUTPUT_DIR, "AttnFada-{}.pth".format(epoch))
                 self._save_checkpoint(epoch, filename)
+            scheduler_enc.step()
+            scheduler_dec.step()
+            scheduler_D.step()
 
         total_training_time = time.time() - start_training_time
         total_time_str = str(datetime.timedelta(seconds=total_training_time))
