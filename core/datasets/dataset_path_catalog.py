@@ -7,7 +7,6 @@ from .kvasir import KvasirDataSet, KvasirFoldDataset
 from .bli import BLIDataset
 
 class DatasetCatalog(object):
-    DATASET_DIR = "/home/admin_mcn/POLYP_DATA/"
     DATASETS = {
         "gta5_train": {
             "data_dir": "gta5",
@@ -55,7 +54,7 @@ class DatasetCatalog(object):
     @staticmethod
     def get(cfg, name, mode, num_classes, transform=None, cross_val=None):
         if "gta5" in name:
-            data_dir = DatasetCatalog.DATASET_DIR
+            data_dir = cfg.DATASETS.DATASET_DIR
             attrs = DatasetCatalog.DATASETS[name]
             args = dict(
                 root=os.path.join(data_dir, attrs["data_dir"]),
@@ -63,7 +62,7 @@ class DatasetCatalog(object):
             )
             return GTA5DataSet(args["root"], num_classes=num_classes, mode=mode, transform=transform)
         elif "synthia" in name:
-            data_dir = DatasetCatalog.DATASET_DIR
+            data_dir = cfg.DATASETS.DATASET_DIR
             attrs = DatasetCatalog.DATASETS[name]
             args = dict(
                 root=os.path.join(data_dir, attrs["data_dir"]),
@@ -71,7 +70,7 @@ class DatasetCatalog(object):
             )
             return synthiaDataSet(args["root"], args["data_list"], max_iters=max_iters, num_classes=num_classes, split=mode, transform=transform)
         elif "cityscapes" in name:
-            data_dir = DatasetCatalog.DATASET_DIR
+            data_dir = cfg.DATASETS.DATASET_DIR
             attrs = DatasetCatalog.DATASETS[name]
             args = dict(
                 root=os.path.join(data_dir, attrs["data_dir"]),
@@ -82,7 +81,7 @@ class DatasetCatalog(object):
                 return cityscapesSelfDistillDataSet(args["root"], args["data_list"], args['label_dir'], max_iters=max_iters, num_classes=num_classes, split=mode, transform=transform)
             return cityscapesDataSet(args["root"], num_classes=num_classes, mode=mode, transform=transform)
         elif "kvasir" in name:
-            data_dir = DatasetCatalog.DATASET_DIR
+            data_dir = cfg.DATASETS.DATASET_DIR
             attrs = DatasetCatalog.DATASETS[name]
             args = dict(
                 root=os.path.join(data_dir, attrs["data_dir"]),
@@ -90,7 +89,7 @@ class DatasetCatalog(object):
             )
             return KvasirDataSet(args["root"], num_classes=num_classes, mode=mode, cross_val=cross_val, transform=transform)
         elif "polyp" in name:
-            data_dir = DatasetCatalog.DATASET_DIR
+            data_dir = cfg.DATASETS.DATASET_DIR
             attrs = DatasetCatalog.DATASETS[name]
             args = dict(
                 root=os.path.join(data_dir, attrs["data_dir"]),
@@ -98,7 +97,7 @@ class DatasetCatalog(object):
             )
             return KvasirFoldDataset(cfg, args["root"], mode=mode, cross_val=cross_val, transform=transform)
         elif "bli" in name:
-            data_dir = DatasetCatalog.DATASET_DIR
+            data_dir = cfg.DATASETS.DATASET_DIR
             attrs = DatasetCatalog.DATASETS[name]
             args = dict(
                 root=os.path.join(data_dir, attrs["data_dir"]),

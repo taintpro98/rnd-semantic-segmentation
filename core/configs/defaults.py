@@ -40,6 +40,7 @@ _C.AUG.PROB = 0.7
 _C.AUG.COLLATE = "attn"
 
 _C.DATASETS = CN()
+_C.DATASETS.DATASET_DIR = ""
 # List of the dataset names for training, as present in paths_catalog.py
 _C.DATASETS.SOURCE_TRAIN = ""
 _C.DATASETS.TARGET_TRAIN = ""

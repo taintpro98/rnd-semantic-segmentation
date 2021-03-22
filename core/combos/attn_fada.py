@@ -75,8 +75,8 @@ class AttnFada:
                 #     self.attn.optimizer_enc.param_groups[index]['lr'] = current_lr
                 # for index in range(len(self.attn.optimizer_dec.param_groups)):
                 #     self.attn.optimizer_dec.param_groups[index]['lr'] = current_lr*10
-                for index in range(len(self.fada.optimizer_D.param_groups)):
-                    self.fada.optimizer_D.param_groups[index]['lr'] = current_lr_D
+                # for index in range(len(self.fada.optimizer_D.param_groups)):
+                #     self.fada.optimizer_D.param_groups[index]['lr'] = current_lr_D
 
                 self.attn.optimizer_enc.zero_grad()
                 self.attn.optimizer_dec.zero_grad()

@@ -10,7 +10,11 @@ import matplotlib.pyplot as plt
 import torch
 import torchvision
 import torch.nn.functional as F
-import torchvision.transforms as transforms
+# import torchvision.transforms as transforms
+
+from albumentations.augmentations import transforms
+from albumentations.core.composition import Compose, OneOf
+
 from core.datasets import transform
 
 # from skimage.color import label2rgb
@@ -24,7 +28,6 @@ from core.configs import cfg
 from core.datasets.build import build_dataset
 from core.models.build import build_feature_extractor, build_classifier
 from core.utils.utility import mkdir, get_color_palette, inference, strip_prefix_if_present, load_json, load_text
-# from core.utils.logger import setup_logger
 from core.models.classifiers.pranet.PraNet_Res2Net import PraNet
 from core.models.classifiers.attn.eff import Encoder, Decoder, AttnEfficientNetUnet
 
@@ -51,17 +54,28 @@ def matplotlib_imshow(img, one_channel=False):
         plt.imshow(npimg, cmap="Greys")
     else:
         plt.imshow(np.transpose(npimg, (1, 2, 0)))
-        
+
 def convert_pilimgs2tensor(images):
     res = []
     for idx, i in enumerate(images):
         if idx==1:
-            res.append(np.array(i.convert('RGB')) * 255)
+            res.append(np.array(i.convert('RGB')))
+            # res.append(np.array(i.convert('RGB')) * 255)
         else:
             res.append(np.array(i.convert('RGB')))
     res = np.stack(res, axis=0)
     res = res.transpose(0, 3, 1, 2)
     res = torch.from_numpy(res)
+    return res
+        
+def convert_pilimgs2npgrid(images, pad=255):
+    raw = np.array(images[0])
+    h, _, _ = raw.shape
+    padd = np.ones((h, 50, 3)) * pad
+    res = raw
+    for i in images[1:]:
+        res = np.concatenate((res, padd), axis=1)
+        res = np.concatenate((res, np.array(i.convert('RGB'))), axis=1)
     return res
     
 def dump_pr_curve(pred, label, id2name, writer):
@@ -83,17 +97,28 @@ def build_transform(name, cfg, img_path, lab_path):
             transform.Normalize(mean=cfg.INPUT.PIXEL_MEAN, std=cfg.INPUT.PIXEL_STD, to_bgr255=cfg.INPUT.TO_BGR255)
         ])
         image = Image.open(img_path).convert('RGB')
+        height, width, _ = np.array(image).shape
         label = np.array(Image.open(lab_path), dtype=np.float32) if config["labeled"] else np.zeros((height, width))
         
         image, label = trans(image, label)
     elif name.startswith("pranet"):
+        # def trans(image, label):
+        #     img_transform = transforms.Compose([
+        #     transforms.Resize((w, h)),
+        #     transforms.ToTensor(),
+        #     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
+        #     gt_transform = transforms.ToTensor()
+        #     image = img_transform(image)
+        #     return image, label
         def trans(image, label):
-            img_transform = transforms.Compose([
-            transforms.Resize((w, h)),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
-            gt_transform = transforms.ToTensor()
-            image = img_transform(image)
+            test_transform = Compose([
+                transforms.Transpose(),
+                transforms.Resize(h, w),
+                transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+            ])
+            augmented = test_transform(image=image, mask=label)
+            image = augmented['image']
+            label = augmented['mask']
             return image, label
         image = imread(img_path)
         label = imread(lab_path) if config["labeled"] else np.zeros((image.shape[0], image.shape[1]))
@@ -187,14 +212,22 @@ def get_pred(output):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-cfg",
+    parser.add_argument(
+        "-cfg",
         "--config-file",
         default="",
         metavar="FILE",
         help="path to config file",
-        type=str,
+        type=str
     )
-    parser.add_argument('-c', '--config_path', default='renders/bli.json', help='path to config', type=str)
+    parser.add_argument(
+        "-c", 
+        "--config_path", 
+        default="renders/cityscapes.json", 
+        metavar="FILE", 
+        help='path to config', 
+        type=str
+    )
 
     args = parser.parse_args()
     config = load_json(args.config_path)
@@ -204,6 +237,7 @@ if __name__ == "__main__":
     cfg.freeze()
 
     print("Loaded configuration file {}".format(args.config_file))
+    print("Loaded demo parameters from file {}".format(args.config_path))
 
     img_paths = load_text(config["sample"]["img_path"])
     lab_paths = load_text(config["sample"]["lab_path"])
@@ -211,22 +245,28 @@ if __name__ == "__main__":
 
     big_preds = [None] * len(config["weights"])
     big_label = None
-    for img_path, lab_path in zip(img_paths, lab_paths):
+
+    if config["tensorboard"]:
+        summary_writer = SummaryWriter(os.path.join(config["root"], config["name"], 'summary'))
+
+    for index, (img_path, lab_path) in enumerate(zip(img_paths, lab_paths)):
         res = list()
         image, label = build_transform(config["name"], cfg, img_path, lab_path)
-        height, width = label.shape
+        height, width = label.shape[:2]
 
         img = Image.open(img_path).convert('RGB') 
         lab = Image.open(lab_path) if config["labeled"] else Image.fromarray(np.zeros((height, width)))
+
         res.append(img)
         res.append(lab.convert('RGB'))
 
-        h, w = np.array(lab).shape
-        tmp = np.array(lab).reshape(h*w)
-        if big_label is None:
-            big_label = tmp
-        else:
-            big_label = np.concatenate((big_label, tmp), axis=0)
+        if config["tensorboard"]:
+            h, w = np.array(lab).shape[:2]
+            tmp = np.array(lab).reshape(h*w)
+            if big_label is None:
+                big_label = tmp
+            else:
+                big_label = np.concatenate((big_label, tmp), axis=0)
 
         for idx, (k, resume) in enumerate(config["weights"].items()):
             output = get_output(cfg, config["name"], resume, image, label)
@@ -241,10 +281,9 @@ if __name__ == "__main__":
                 big_preds[idx] = np.concatenate((big_preds[idx], tmp), axis=0)
             res.append(result)
         
-        samples.append(res)
-    
-    if config["tensorboard"]:
-        for idx, lab_path in enumerate(lab_paths):
+        # samples.append(res)
+        print("{}. Dumped images of {} into a grid".format(index+1, os.path.basename(lab_path)))
+        if config["tensorboard"]:
             name = os.path.basename(lab_path)[:-4]
             # label = np.array(Image.open(lab_path))
             # label_copy = np.ones(label.shape, dtype=np.int32) * 255
@@ -252,27 +291,48 @@ if __name__ == "__main__":
             #     label_copy[label == int(k)] = v
             # label = Image.fromarray(label_copy)
 
-            samples[idx] = convert_pilimgs2tensor(samples[idx])
-            img_grid = torchvision.utils.make_grid(samples[idx])
-            summary_writer = SummaryWriter(os.path.join(config["root"], config["name"], 'summary'))
-            summary_writer.add_image(str(idx) + '.'+ name, img_grid)   
-        summary_writer.close()
+            res = convert_pilimgs2tensor(res)
+            img_grid = torchvision.utils.make_grid(res)
+            summary_writer.add_image(str(index) + '.'+ name, img_grid)   
 
+        else:
+            filename = os.path.basename(lab_path)
+            res = convert_pilimgs2npgrid(res, 255)
+            # cv2.imwrite(os.path.join(config["dir"], filename), res)
+            Image.fromarray(res.astype(np.uint8)).save(os.path.join(config["dir"], filename))
+            print("{}, saved {} in {}".format(index+1, filename, config["dir"]))
+
+    if config["tensorboard"]:
+        summary_writer.close()
         for key, big_pred in zip(config["weights"].keys(), big_preds):
             writer = SummaryWriter(os.path.join(config["root"], config["name"], key))
             dump_pr_curve(big_pred, big_label, config["trainid2name"], writer)
             writer.close()
+    
+    # if config["tensorboard"]:
+    #     for idx, lab_path in enumerate(lab_paths):
+    #         name = os.path.basename(lab_path)[:-4]
+    #         # label = np.array(Image.open(lab_path))
+    #         # label_copy = np.ones(label.shape, dtype=np.int32) * 255
+    #         # for k, v in config["id_to_trainid"].items():
+    #         #     label_copy[label == int(k)] = v
+    #         # label = Image.fromarray(label_copy)
 
-    else:
-        for k, resume in config["weights"].items():
-            pred = get_pred(resume)
-            res = get_color_palette(pred, config["palette"])
-            samples.append(res)
-        
-        n_rows = 1
-        n_cols = len(samples)
-        _, axs = plt.subplots(n_rows, n_cols, figsize=(30, 30))
-        axs = axs.flatten()
-        for img, ax in zip(samples, axs):
-            ax.imshow(img)
-        plt.show()
+    #         samples[idx] = convert_pilimgs2tensor(samples[idx])
+    #         img_grid = torchvision.utils.make_grid(samples[idx])
+            
+    #         summary_writer = SummaryWriter(os.path.join(config["root"], config["name"], 'summary'))
+    #         summary_writer.add_image(str(idx) + '.'+ name, img_grid)   
+    #     summary_writer.close()
+
+    #     for key, big_pred in zip(config["weights"].keys(), big_preds):
+    #         writer = SummaryWriter(os.path.join(config["root"], config["name"], key))
+    #         dump_pr_curve(big_pred, big_label, config["trainid2name"], writer)
+    #         writer.close()
+
+    # else:
+    #     for idx, lab_path in enumerate(lab_paths):
+    #         filename = os.path.basename(lab_path)
+    #         samples[idx] = convert_pilimgs2npgrid(samples[idx], 255)
+    #         cv2.imwrite(os.path.join(config["dir"], filename), samples[idx])
+    #         print("{}, saved {} in {}".format(idx+1, filename, config["dir"]))

@@ -1,8 +1,9 @@
 {
     "root": "runs",
-    "name": "attn",
-    "tensorboard": true,
-    "labeled": false,
+    "name": "attn_bli",
+    "tensorboard": false,
+    "dir": "/home/admin_mcn/taint/visualize/BLI",
+    "labeled": true,
     "sample":{
         "img_path": "renders/demo_image.txt",
         "lab_path": "renders/demo_groundtruth.txt"

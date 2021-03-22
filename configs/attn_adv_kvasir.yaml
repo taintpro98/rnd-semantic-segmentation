@@ -3,6 +3,7 @@ MODEL:
   FREEZE_BN: True
   NUM_CLASSES: 2
 DATASETS:
+  DATA_DIR: ""
   SOURCE_TRAIN: "polyp_train"
   TARGET_TRAIN: "bli_train"
   TEST: "polyp_val"
