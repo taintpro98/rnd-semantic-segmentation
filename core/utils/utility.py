@@ -8,7 +8,9 @@ from collections import defaultdict
 from collections import deque
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
+from torchvision import transforms
 
 def mkdir(path):
     try:
@@ -23,16 +25,49 @@ class AverageMeter(object):
         self.reset()
 
     def reset(self):
-        self.val = 0
-        self.avg = 0
-        self.sum = 0
-        self.count = 0
+        """
+        Precision = TP/(TP+FP)
+        Recall = TP/(TP+FN)
+        F1-Score = 2 * Precision * Recall / (Precision + Recall)
+        """
+        self.intersection_sum = 0 # TP
+        self.union_sum = 0 # FP + TP + FN
+        self.target_sum = 0 # TP + FN (target)
+        self.res_sum = 0 # FP + TP (output)
+        self.count = 0 
+        self.iou_sum = 0 # TP/(FP + TP + FN)
+        self.f1_sum = 0 # 2*TP/(2*TP + FP + FN) = 2*inter/(output + target)
 
-    def update(self, val):
-        self.val = val
-        self.sum += val
+    def update(self, intersection, union, target, res):
+        iou = intersection/(union + 1e-10)
+        f1 = 2*intersection/(target + res + 1e-10)
+
+        self.intersection_sum += intersection
+        self.union_sum += union
+        self.target_sum += target
+        self.res_sum += res
         self.count += 1
-        self.avg = self.sum / self.count
+        self.iou_sum += iou
+        self.f1_sum += f1
+
+    def summary(self, logger, num_classes=2):
+        macro_f1 = self.f1_sum/float(self.count)
+        macro_iou = self.iou_sum/float(self.count)
+
+        micro_f1 = 2*self.intersection_sum/(self.target_sum + self.res_sum + 1e-10)
+        micro_iou = self.intersection_sum/(self.union_sum + 1e-10)
+
+        mIoU = np.mean(macro_iou)
+        mF1 = np.mean(macro_f1)
+        logger.info('Macro metric, val result: mIoU/mF1 {:.4f}/{:.4f}.'.format(mIoU, mF1))
+
+        mIoU = np.mean(micro_iou)
+        mF1 = np.mean(micro_f1)
+        logger.info('Micro metric, val result: mIoU/mF1 {:.4f}/{:.4f}.'.format(mIoU, mF1))
+
+        for i in range(num_classes):
+            logger.info('Macro metric, class {} iou/f1 score: {:.4f}/{:.4f}.'.format(i, macro_iou[i], macro_f1[i]))
+            logger.info('Micro metric, class {} iou/f1 score: {:.4f}/{:.4f}.'.format(i, micro_iou[i], micro_f1[i]))
 
 class SmoothedValue(object):
     """Track a series of values and provide access to smoothed values over a
@@ -153,12 +188,12 @@ def inference(feature_extractor, classifier, image, label, flip=True):
         output = output[0]
     return output.unsqueeze(dim=0)
 
-def get_color_pallete(pred, pallete):
+def get_color_palette(pred, palette):
     """
         :pred: H * W numpy array with 0 and 1
     """
     label = Image.fromarray(pred.astype('uint8')).convert('P')
-    label.putpalette(pallete)
+    label.putpalette(palette)
     return label
 
 def load_json(json_path):
@@ -200,3 +235,70 @@ class Threshold(nn.Module):
     def forward(self, input):
         mask = input >= self.threshold
         return torch.as_tensor(mask, dtype=torch.int)
+
+def generate_scales(input, scales):
+    """
+    Generate scaled versions of a tensor
+
+    :param input: Input tensor
+    :type input: torch.Tensor
+    :param scales: List of scales to generate
+    :type scales: list
+    :return: List of scaled tensors
+    """
+    height, width = input.shape[-2:]
+    outputs = []
+
+    for scale in scales:
+        sw = int(width * scale)
+        sh = int(height * scale)
+        out = transforms.Resize((sh, sw))(input)
+        outputs.append(out)
+
+    return outputs
+
+def probs_to_mask(probs, thres=0.5):
+    """
+    Convert a probability tensor into a class mask
+
+    :param probs: Tensor of shape [B x C x H x W], values from 0 to 1
+    :return: Tensor of shape [B x H x W], each pixel corresponds to a class
+    """
+    num_classes = probs.shape[1]
+
+    if num_classes > 1:
+        return torch.argmax(probs, dim=1)
+    else:
+        return (probs > thres).int()
+
+
+def probs_to_onehot(probs, thres=0.5):
+    """
+    Converts a [B x C x H x W] probability map to a one-hot encoded matrix
+
+    :param probs: The input mask
+    :return: Output one-hot mask
+    """
+    num_classes = probs.shape[1]
+    if num_classes > 1:
+        indices = torch.argmax(probs, dim=1)
+        return F.one_hot(indices, num_classes).permute(0, 3, 1, 2)
+    else:
+        return (probs > thres).int()
+
+# class AverageMeter(object):
+#     """Computes and stores the average and current value"""
+#     def __init__(self):
+#         self.reset()
+
+#     def reset(self):
+#         self.val = 0
+#         self.avg = 0
+#         self.sum = 0
+#         self.count = 0
+
+#     def update(self, val):
+#         self.val = val
+#         self.sum += val
+#         self.count += 1
+#         self.avg = self.sum / self.count

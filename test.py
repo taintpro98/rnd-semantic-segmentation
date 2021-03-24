@@ -4,9 +4,10 @@ import logging
 import torch
 
 from core.configs import cfg
-from core.datasets.build import build_dataset
+from core.datasets.build import build_dataset, build_collate_fn
 from core.testers.aspp_tester import ASPPTester
 from core.testers.pranet_tester import PranetTester
+from core.testers.attn_tester import AttnTester, AttnWrapTester
 from core.utils.utility import load_json, setup_logger
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -17,12 +18,23 @@ def test(cfg, config):
     logger.info("#"*20 + " Start Testing " + "#"*20)
 
     test_data = build_dataset(cfg, mode='test', is_source=False)
-    test_loader = torch.utils.data.DataLoader(test_data, batch_size=cfg.TEST.BATCH_SIZE, shuffle=False, num_workers=4, pin_memory=True, sampler=None)
+    collate_fn = build_collate_fn(cfg)
+    test_loader = torch.utils.data.DataLoader(
+        test_data, 
+        batch_size=cfg.TEST.BATCH_SIZE, 
+        shuffle=False, 
+        num_workers=4, 
+        pin_memory=True,
+        collate_fn=collate_fn, 
+        sampler=None
+    )
 
-    if name == "aspp_test":
+    if name.startswith("aspp"):
         tester = ASPPTester(cfg, device, test_loader, logger)
-    elif name == "pranet_test":
+    elif name.startswith("pranet"):
         tester = PranetTester(cfg, device, test_loader, logger)
+    elif name.startswith("attn"):
+        tester = AttnTester(cfg, device, test_loader, logger)
     tester._load_checkpoint()
     tester.test()
 
@@ -35,7 +47,7 @@ def main():
         help="path to config file",
         type=str,
     )
-    parser.add_argument('-c', '--config_path', default='configs/demo_config.json', help='path to config')
+    parser.add_argument('-c', '--config_path', default='renders/bli.json', help='path to config')
     parser.add_argument(
         "opts",
         help="Modify config options using the command-line",

@@ -77,7 +77,7 @@ class AsppFada:
                 tgt_size = tgt_input.shape[-2:]
 
                 src_fea = self.aspp.feature_extractor(src_input)
-                src_pred = self.aspp.classifier(src_fea, src_size)
+                src_pred = self.aspp.classifier(src_fea, src_size) # float tensor B x C x H x W
                 temperature = 1.8
                 src_pred = src_pred.div(temperature)
                 loss_seg = criterion(src_pred, src_label)

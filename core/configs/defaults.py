@@ -28,11 +28,19 @@ _C.INPUT.BRIGHTNESS = 0.0
 _C.INPUT.CONTRAST = 0.0
 _C.INPUT.SATURATION = 0.0
 _C.INPUT.HUE = 0.0
-
-# Flips
 _C.INPUT.HORIZONTAL_FLIP_PROB_TRAIN = 0.0
 
+_C.AUG = CN()
+_C.AUG.NAME = "attn"
+_C.AUG.BLUR_PROB = 0.7
+_C.AUG.ROTATE_PROB = 0.7
+_C.AUG.JITTER_PROB = 0.7
+_C.AUG.FLIP_PROB = 0.7
+_C.AUG.PROB = 0.7
+_C.AUG.COLLATE = "attn"
+
 _C.DATASETS = CN()
+_C.DATASETS.DATASET_DIR = ""
 # List of the dataset names for training, as present in paths_catalog.py
 _C.DATASETS.SOURCE_TRAIN = ""
 _C.DATASETS.TARGET_TRAIN = ""

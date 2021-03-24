@@ -2,15 +2,15 @@
     "root": "runs",
     "name": "pranet_test",
     "tensorboard": true,
-    "labeled": false,
+    "labeled": true,
     "sample":{
-        "img_path": "/Users/macbook/Documents/AI/topics/DomainAdaptation/code/rnd-semantic-segmentation/configs/demo_image.txt",
-        "lab_path": "/Users/macbook/Documents/AI/topics/DomainAdaptation/code/rnd-semantic-segmentation/configs/demo_groundtruth.txt"
+        "img_path": "demo_image.txt",
+        "lab_path": "demo_groundtruth.txt"
     },
     "weights":{
         "src_model": "/Users/macbook/Documents/AI/topics/DomainAdaptation/weights/pranet/PraNet-4.pth"
     },
-    "pallete": [
+    "palette": [
         0, 0, 0,
         255, 255, 255
     ],

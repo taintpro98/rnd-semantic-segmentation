@@ -3,12 +3,10 @@ from .cityscapes import cityscapesDataSet
 # from .cityscapes_self_distill import cityscapesSelfDistillDataSet
 # from .synthia import synthiaDataSet
 from .gta5 import GTA5DataSet
-from .kvasir import KvasirDataSet
-from .polyp import PolypDataset
+from .kvasir import KvasirDataSet, KvasirFoldDataset
 from .bli import BLIDataset
 
 class DatasetCatalog(object):
-    DATASET_DIR = "/home/admin_mcn/POLYP_DATA/"
     DATASETS = {
         "gta5_train": {
             "data_dir": "gta5",
@@ -48,7 +46,11 @@ class DatasetCatalog(object):
             "data_list": ""
         },
         "bli_train": {
-            "data_dir": "BLI",
+            "data_dir": "BLI/train",
+            "data_list": ""
+        },
+        "bli_val": {
+            "data_dir": "BLI/test",
             "data_list": ""
         }
     }
@@ -56,7 +58,7 @@ class DatasetCatalog(object):
     @staticmethod
     def get(cfg, name, mode, num_classes, transform=None, cross_val=None):
         if "gta5" in name:
-            data_dir = DatasetCatalog.DATASET_DIR
+            data_dir = cfg.DATASETS.DATASET_DIR
             attrs = DatasetCatalog.DATASETS[name]
             args = dict(
                 root=os.path.join(data_dir, attrs["data_dir"]),
@@ -64,7 +66,7 @@ class DatasetCatalog(object):
             )
             return GTA5DataSet(args["root"], num_classes=num_classes, mode=mode, transform=transform)
         elif "synthia" in name:
-            data_dir = DatasetCatalog.DATASET_DIR
+            data_dir = cfg.DATASETS.DATASET_DIR
             attrs = DatasetCatalog.DATASETS[name]
             args = dict(
                 root=os.path.join(data_dir, attrs["data_dir"]),
@@ -72,7 +74,7 @@ class DatasetCatalog(object):
             )
             return synthiaDataSet(args["root"], args["data_list"], max_iters=max_iters, num_classes=num_classes, split=mode, transform=transform)
         elif "cityscapes" in name:
-            data_dir = DatasetCatalog.DATASET_DIR
+            data_dir = cfg.DATASETS.DATASET_DIR
             attrs = DatasetCatalog.DATASETS[name]
             args = dict(
                 root=os.path.join(data_dir, attrs["data_dir"]),
@@ -83,7 +85,7 @@ class DatasetCatalog(object):
                 return cityscapesSelfDistillDataSet(args["root"], args["data_list"], args['label_dir'], max_iters=max_iters, num_classes=num_classes, split=mode, transform=transform)
             return cityscapesDataSet(args["root"], num_classes=num_classes, mode=mode, transform=transform)
         elif "kvasir" in name:
-            data_dir = DatasetCatalog.DATASET_DIR
+            data_dir = cfg.DATASETS.DATASET_DIR
             attrs = DatasetCatalog.DATASETS[name]
             args = dict(
                 root=os.path.join(data_dir, attrs["data_dir"]),
@@ -91,20 +93,20 @@ class DatasetCatalog(object):
             )
             return KvasirDataSet(args["root"], num_classes=num_classes, mode=mode, cross_val=cross_val, transform=transform)
         elif "polyp" in name:
-            data_dir = DatasetCatalog.DATASET_DIR
+            data_dir = cfg.DATASETS.DATASET_DIR
             attrs = DatasetCatalog.DATASETS[name]
             args = dict(
                 root=os.path.join(data_dir, attrs["data_dir"]),
                 data_list=os.path.join(data_dir, attrs["data_list"]),
             )
-            return PolypDataset(cfg, args["root"], mode=mode, cross_val=cross_val, trainsize=cfg.INPUT.TRAINSIZE, transform=transform)
+            return KvasirFoldDataset(cfg, args["root"], mode=mode, cross_val=cross_val, transform=transform)
         elif "bli" in name:
-            data_dir = DatasetCatalog.DATASET_DIR
+            data_dir = cfg.DATASETS.DATASET_DIR
             attrs = DatasetCatalog.DATASETS[name]
             args = dict(
                 root=os.path.join(data_dir, attrs["data_dir"]),
                 data_list=os.path.join(data_dir, attrs["data_list"]),
             )
-            return BLIDataset(cfg, args["root"], trainsize=cfg.INPUT.TRAINSIZE, num_classes=num_classes, mode=mode, transform=transform)
+            return BLIDataset(cfg, args["root"], mode=mode, transform=transform)
 
         raise RuntimeError("Dataset not available: {}".format(name))

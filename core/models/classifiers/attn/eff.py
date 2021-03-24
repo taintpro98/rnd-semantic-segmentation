@@ -4,15 +4,15 @@ import torch.nn.functional as F
 # import pytorch_lightning as pl
 
 from torchvision.models import ResNet
-from loguru import logger
 from efficientnet_pytorch import EfficientNet
 from efficientnet_pytorch.utils import efficientnet_params
 from typing import Callable, Optional
 
-from polypnet.model.attn import AdditiveAttnGate
+from core.models.classifiers.attn.attn import AdditiveAttnGate
 
 class Encoder(nn.Module):
-    def __init__(self, backbone_name="efficientnet-b0", num_classes=1):
+    def __init__(self, backbone_name="efficientnet-b0", num_classes=2):
+        super().__init__()
         self.encoder = EfficientNet.from_pretrained(backbone_name)
 
     def forward(self, inputs):
@@ -22,7 +22,7 @@ class Encoder(nn.Module):
 class Decoder(nn.Module):
     def __init__(self,
         backbone_name="efficientnet-b0",
-        num_classes=1
+        num_classes=2
     ):
         super().__init__()
 
@@ -146,6 +146,16 @@ class Decoder(nn.Module):
 
         return out_0, out_1, out_2, out_3, out_4
 
+class AttnEfficientNetUnet(nn.Module):
+    def __init__(self, backbone_name="efficientnet-b0", num_classes=2):
+        super().__init__()
+        self.encoder = Encoder(backbone_name=backbone_name, num_classes=num_classes)
+        self.decoder = Decoder(backbone_name=backbone_name, num_classes=num_classes)
+
+    def forward(self, inputs):
+        endpoints = self.encoder(inputs)
+        outputs = self.decoder(endpoints)
+        return outputs
 
 def test_1():
     x = torch.randn((5, 3, 224, 224))

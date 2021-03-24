@@ -1,0 +1,27 @@
+{
+    "root": "runs",
+    "name": "attn_bli",
+    "tensorboard": false,
+    "dir": "/home/admin_mcn/taint/visualize/BLI",
+    "labeled": true,
+    "sample":{
+        "img_path": "renders/demo_image.txt",
+        "lab_path": "renders/demo_groundtruth.txt"
+    },
+    "weights":{
+        "src_model": "/home/admin_mcn/taint/weights/kvasir/attn/f0-16-3-2021/Attn-70.pth",
+        "adv_model": "/home/admin_mcn/taint/code/rnd-semantic-segmentation/results/fada_attn_kvasir2bli/AttnFada-100.pth"
+    },
+    "palette": [
+        0, 0, 0,
+        255, 255, 255
+    ],
+    "id_to_trainid": {
+        "0": 0,
+        "1": 1
+    },
+    "trainid2name": {
+        "0": "background",
+        "1": "polyp"
+    }
+}
