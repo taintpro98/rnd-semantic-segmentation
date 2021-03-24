@@ -29,12 +29,12 @@ def test(cfg, config):
         sampler=None
     )
 
-    if name == "aspp_test":
+    if name.startswith("aspp"):
         tester = ASPPTester(cfg, device, test_loader, logger)
-    elif name == "pranet_test":
+    elif name.startswith("pranet"):
         tester = PranetTester(cfg, device, test_loader, logger)
-    elif name == "attn_test":
-        tester = AttnWrapTester(cfg, device, test_loader, logger)
+    elif name.startswith("attn"):
+        tester = AttnTester(cfg, device, test_loader, logger)
     tester._load_checkpoint()
     tester.test()
 
@@ -47,7 +47,7 @@ def main():
         help="path to config file",
         type=str,
     )
-    parser.add_argument('-c', '--config_path', default='configs/demo_config.json', help='path to config')
+    parser.add_argument('-c', '--config_path', default='renders/bli.json', help='path to config')
     parser.add_argument(
         "opts",
         help="Modify config options using the command-line",

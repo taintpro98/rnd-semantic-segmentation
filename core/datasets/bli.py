@@ -2,11 +2,13 @@ import os
 import numpy as np
 from PIL import Image
 from glob import glob
+import cv2
 
 from torch.utils.data import Dataset
 from albumentations.core.composition import Compose, OneOf
 from albumentations.augmentations import transforms
 from skimage.io import imread
+from core.components.augment import cv2_resize
 
 class BLIDataset(Dataset):
     def __init__(self, cfg, data_root, mode="train", transform=None, debug=False):
@@ -21,7 +23,7 @@ class BLIDataset(Dataset):
         self.id_to_trainid = {
             0: 0, 1: 1
         }
-        self.image_paths += [img_path for img_path in glob(os.path.join(data_root, 'train') + '/*.*') if img_path.endswith("JPG") or img_path.endswith("jpg") or img_path.endswith("png")]
+        self.image_paths += [img_path for img_path in glob(os.path.join(data_root, 'images') + '/*.*') if img_path.endswith("JPG") or img_path.endswith("jpg") or img_path.endswith("png") or img_path.endswith("jpeg")]
 
     def __len__(self):
         return len(self.image_paths)
@@ -31,20 +33,27 @@ class BLIDataset(Dataset):
             index = 0
 
         img_name = os.path.basename(self.image_paths[index])
+        img_dir = os.path.dirname(os.path.dirname(self.image_paths[index]))
         datafile = {
             'img': self.image_paths[index],
-            'label': None,
-            'name': img_name[:-4]
+            'label': os.path.join(img_dir, 'masks', img_name[:-5] + '.png'),
+            'name': img_name[:-5]
         }
-        image = imread(datafile["img"]) # numpy array but the photo doesn't look like normal one
+        image = imread(datafile["img"]) # numpy array RGB (not BGR like OpenCV)
         # mask = imread(datafile["label"])
+        mask = cv2.imread(datafile["label"])
+        mask = mask / 255
+        mask = mask.astype(np.uint8)
+        mask = mask[:, :, 0]
         name = datafile["name"]
 
         if self.transform is not None:
-            image, _ = self.transform(image, image)
-        if self.cfg.INPUT.TARGET_INPUT_SIZE_TRAIN is not None:
-            image, _ = cv2_resize(image, None, self.cfg.INPUT.TARGET_INPUT_SIZE_TRAIN)
-        return image, 0, name
+            image, mask = self.transform(image, mask)
+        if self.mode == "train":
+            image, mask = cv2_resize(image, mask, self.cfg.INPUT.TARGET_INPUT_SIZE_TRAIN)
+        else:
+            image, mask = cv2_resize(image, mask, self.cfg.INPUT.INPUT_SIZE_TEST)
+        return image, mask, name
 
     def _transform(self, image, label):
         w, h = self.cfg.INPUT.INPUT_SIZE_TEST

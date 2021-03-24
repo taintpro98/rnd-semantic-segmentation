@@ -36,8 +36,8 @@ class Augmenter:
         def f(image, label):
             return image, label
         if self.mode == "train":
-            if not self.is_source:
-                return f
+            # if not self.is_source:
+            #     return f
             def F(image, label):
                 trans = al.Compose([
                     al.MotionBlur(p=self.cfg.AUG.BLUR_PROB),

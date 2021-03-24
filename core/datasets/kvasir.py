@@ -57,8 +57,10 @@ class KvasirFoldDataset(Dataset):
 
         if self.transform is not None:
             image, mask = self.transform(image, mask)
-        if self.cfg.INPUT.SOURCE_INPUT_SIZE_TRAIN is not None:
+        if self.mode == "train":
             image, mask = cv2_resize(image, mask, self.cfg.INPUT.SOURCE_INPUT_SIZE_TRAIN)
+        else:
+            image, mask = cv2_resize(image, mask, self.cfg.INPUT.INPUT_SIZE_TEST)
         return image, mask, name
 
 class KvasirDataSet(Dataset):

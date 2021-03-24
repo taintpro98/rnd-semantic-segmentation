@@ -46,7 +46,11 @@ class DatasetCatalog(object):
             "data_list": ""
         },
         "bli_train": {
-            "data_dir": "BLI",
+            "data_dir": "BLI/train",
+            "data_list": ""
+        },
+        "bli_val": {
+            "data_dir": "BLI/test",
             "data_list": ""
         }
     }

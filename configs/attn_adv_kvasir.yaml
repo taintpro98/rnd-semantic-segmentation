@@ -3,10 +3,10 @@ MODEL:
   FREEZE_BN: True
   NUM_CLASSES: 2
 DATASETS:
-  DATA_DIR: ""
+  DATASET_DIR: "/home/admin_mcn/sangdv/test_adv"
   SOURCE_TRAIN: "polyp_train"
   TARGET_TRAIN: "bli_train"
-  TEST: "polyp_val"
+  TEST: "bli_val"
   CROSS_VAL: 0
 INPUT:
   SOURCE_INPUT_SIZE_TRAIN: [512, 512]
@@ -25,7 +25,7 @@ AUG:
   PROB: 0.7
   COLLATE: "attn"
 SOLVER:
-  BASE_LR: 2.5e-4
+  BASE_LR: 0.5e-3 #2.5e-4
   WEIGHT_DECAY: 1e-4
   BASE_LR_D: 1e-4
   BATCH_SIZE: 20
