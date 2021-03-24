@@ -17,7 +17,7 @@ class KvasirFoldDataset(Dataset):
         self.transform = transform
         self.debug = debug
                
-        self.image_paths = []
+        self.image_paths = list()
 
         kfolds = glob(data_root + "/*/")
         if mode == "train":

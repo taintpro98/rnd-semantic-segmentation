@@ -8,18 +8,32 @@ import collections
 
 import torch
 import torchvision
-from torch.utils import data
+from torch.utils.data import Dataset
 from PIL import Image
 import pickle
 
-
-class GTA5DataSet(data.Dataset):
-    def __init__(self, data_root, num_classes=19, mode="train", transform=None, ignore_label=255, debug=False):
-
+class GTA5FoldDataSet(Dataset):
+    def __init__(self, cfg, data_root, mode="train", cross_val=0, transform=None, debug=False, ignore_label=255):
+        super(GTA5DataSet, self).__init__()
+        self.cfg = cfg
+        self.data_root = data_root 
         self.mode = mode
-        self.NUM_CLASS = num_classes
-        self.data_root = data_root
-        self.image_paths = [img_path for img_path in glob(os.path.join(data_root, 'images') + '/*.png')]
+        self.transform = transform
+        self.ignore_label = ignore_label
+        self.debug = debug
+        self.num_class = cfg.MODEL.NUM_CLASSES
+        # self.image_paths = [img_path for img_path in glob(os.path.join(data_root, 'images') + '/*.png')]
+        self.image_paths = list()
+
+        kfolds = glob(data_root + "/*/")
+        if mode == "train":
+            for kfold_path in kfolds:
+                if str(cross_val) not in os.path.basename(kfold_path[:-1]):
+                    self.image_paths += [img_path for img_path in glob(os.path.join(kfold_path, 'images') + '/*.png')]
+        else:
+            for kfold_path in kfolds:
+                if str(cross_val) in os.path.basename(kfold_path[:-1]):
+                    self.image_paths += [img_path for img_path in glob(os.path.join(kfold_path, 'images') + '/*.png')]
         
         self.id_to_trainid = {7: 0, 8: 1, 11: 2, 12: 3, 13: 4, 17: 5,
                               19: 6, 20: 7, 21: 8, 22: 9, 23: 10, 24: 11, 25: 12,
@@ -45,9 +59,6 @@ class GTA5DataSet(data.Dataset):
             17:"motocycle",
             18:"bicycle"
         }
-        self.transform = transform
-        self.ignore_label = ignore_label
-        self.debug = debug
 
     def __len__(self):
         return len(self.image_paths)
@@ -65,7 +76,7 @@ class GTA5DataSet(data.Dataset):
         }
 
         image = Image.open(datafile["img"]).convert('RGB')
-        label = np.array(Image.open(datafile["label"]),dtype=np.float32)
+        label = np.array(Image.open(datafile["label"]), dtype=np.float32)
         name = datafile["name"]
 
         # re-assign labels to match the format of Cityscapes
