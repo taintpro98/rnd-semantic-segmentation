@@ -28,8 +28,8 @@ class Augmenter:
             return self.attn_trans()
         elif self.cfg.AUG.NAME == "pra":
             return self.pra_trans()
-        elif self.cfg.AUG.NAME == "fada":
-            return self.fada_trans()
+        elif self.cfg.AUG.NAME == "aspp":
+            return self.aspp_trans()
         raise AttributeError("No Augmenter was required !")
 
     def attn_trans(self):
@@ -84,7 +84,7 @@ class Augmenter:
             return image, label
         return F
 
-    def fada_trans(self):
+    def aspp_trans(self):
         if self.mode=="train":
             w, h = self.cfg.INPUT.SOURCE_INPUT_SIZE_TRAIN if self.is_source else self.cfg.INPUT.TARGET_INPUT_SIZE_TRAIN
             trans_list = [

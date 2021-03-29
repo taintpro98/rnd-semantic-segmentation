@@ -258,7 +258,17 @@ if __name__ == "__main__":
         lab = Image.open(lab_path) if config["labeled"] else Image.fromarray(np.zeros((height, width)))
 
         res.append(img)
-        res.append(lab.convert('RGB'))
+        if config["labeled"] == "id":
+            gt = np.array(lab)
+            label_copy = cfg.MODEL.NUM_CLASSES * np.ones(gt.shape[:2], dtype=np.float32)
+            for k, v in config["id_to_trainid"].items():
+                label_copy[gt == k] = v
+            gt = Image.fromarray(label_copy)
+            palette = config["palette"] + [0, 0, 0]
+            result = get_color_palette(gt, palette)
+            res.append(result)
+        else:
+            res.append(lab.convert('RGB'))
 
         if config["tensorboard"]:
             h, w = np.array(lab).shape[:2]
@@ -271,7 +281,12 @@ if __name__ == "__main__":
         for idx, (k, resume) in enumerate(config["weights"].items()):
             output = get_output(cfg, config["name"], resume, image, label)
             pred = get_pred(output)
-            result = get_color_palette(pred, config["palette"])
+            if config["labeled"] == "id":
+                pred[gt == cfg.MODEL.NUM_CLASSES] = cfg.MODEL.NUM_CLASSES
+                result = get_color_palette(pred, config["palette"] + [0, 0, 0])
+            else:
+                result = get_color_palette(pred, config["palette"])
+
 
             h, w, c = output.shape
             tmp = output.reshape(h*w, c)

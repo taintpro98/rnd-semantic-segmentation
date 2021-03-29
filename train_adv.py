@@ -38,7 +38,7 @@ def main(name, cfg, local_rank, distributed):
         shuffle=(tgt_train_sampler is None), 
         num_workers=4, 
         pin_memory=True, 
-        collate_fn=collate_fn,
+        # collate_fn=collate_fn, running aspp on cityscapes
         sampler=tgt_train_sampler, 
         drop_last=True
     )
@@ -96,4 +96,4 @@ if __name__ == "__main__":
     #     logger.info(config_str)
     # logger.info("Running with config:\n{}".format(cfg))
 
-    main("attn_fada", cfg, args.local_rank, args.distributed)
+    main("aspp_fada", cfg, args.local_rank, args.distributed)

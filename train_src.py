@@ -28,7 +28,7 @@ def main(name, cfg, local_rank):
     elif name == "pranet":
         trainer = PraNetTrainer(name, cfg, train_loader, local_rank)
     elif name == "attn":
-        trainer = AttnWrapTrainer(name, cfg, train_loader, local_rank)
+        trainer = AttnTrainer(name, cfg, train_loader, local_rank)
     trainer.train()
 
 if __name__ == "__main__":
@@ -56,4 +56,4 @@ if __name__ == "__main__":
     cfg.merge_from_list(args.opts)
     cfg.freeze()
 
-    main("attn", cfg, args.local_rank)
+    main("aspp", cfg, args.local_rank)

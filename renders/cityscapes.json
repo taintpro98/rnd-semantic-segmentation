@@ -3,7 +3,7 @@
     "name": "aspp_fada_test",
     "tensorboard": false,
     "dir": "/home/admin_mcn/taint/visualize/cityscapes",
-    "labeled": true,
+    "labeled": "id",
     "sample":{
         "img_path": "renders/demo_image.txt",
         "lab_path": "renders/demo_groundtruth.txt"

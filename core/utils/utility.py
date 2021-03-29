@@ -302,3 +302,14 @@ def probs_to_onehot(probs, thres=0.5):
 #         self.sum += val
 #         self.count += 1
 #         self.avg = self.sum / self.count
+
+def preds2ignorepreds(config, gt, pd, ignore_label=255):
+    """
+    add ignore labels to groundtruth and prediction to 
+    """
+    label_copy = ignore_label * np.ones(gt.shape, dtype=np.float32)
+    for k, v in config["id_to_trainid"].items():
+        label_copy[gt == k] = v
+    gt = Image.fromarray(label_copy)
+    pd[gt == ignore_index] = ignore_index
+    return gt, pd

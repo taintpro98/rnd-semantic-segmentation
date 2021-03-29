@@ -12,6 +12,10 @@ class DatasetCatalog(object):
             "data_dir": "gta5",
             "data_list": "gta5_train_list.txt"
         },
+        "gta5_val": {
+            "data_dir": "gta5",
+            "data_list": "gta5_train_list.txt"
+        },
         "synthia_train": {
             "data_dir": "synthia",
             "data_list": "synthia_train_list.txt"

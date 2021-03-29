@@ -66,8 +66,8 @@ class ASPPTrainer(BaseTrainer):
         start_training_time = time.time()
         end = time.time()
 
-        scheduler_enc = CosineAnnealingWarmupLR(self.optimizer_enc, T_max=50, warmup_epochs=5)
-        scheduler_dec = CosineAnnealingWarmupLR(self.optimizer_dec, T_max=50, warmup_epochs=5)
+        # scheduler_enc = CosineAnnealingWarmupLR(self.optimizer_enc, T_max=50, warmup_epochs=5)
+        # scheduler_dec = CosineAnnealingWarmupLR(self.optimizer_dec, T_max=50, warmup_epochs=5)
 
         for epoch in range(self.start_epoch, self.cfg.SOLVER.EPOCHS+1):
             for i, (src_input, src_label, _) in enumerate(self.train_loader):

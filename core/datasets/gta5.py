@@ -14,7 +14,7 @@ import pickle
 
 class GTA5FoldDataSet(Dataset):
     def __init__(self, cfg, data_root, mode="train", cross_val=0, transform=None, debug=False, ignore_label=255):
-        super(GTA5DataSet, self).__init__()
+        super(GTA5FoldDataSet, self).__init__()
         self.cfg = cfg
         self.data_root = data_root 
         self.mode = mode
@@ -71,7 +71,7 @@ class GTA5FoldDataSet(Dataset):
         
         datafile = {
             'img': self.image_paths[index],
-            'label': os.path.join(self.data_root, 'labels', img_name),
+            'label': os.path.join(img_dir, 'labels', img_name),	
             'name': img_name[:-4]
         }
 
