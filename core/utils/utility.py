@@ -188,9 +188,27 @@ def inference(feature_extractor, classifier, image, label, flip=True):
         output = output[0]
     return output.unsqueeze(dim=0)
 
+def multi_scale_inference(feature_extractor, classifier, image, label, flip=True, scales=[0.7,1.0,1.3]):
+    output = None
+    size = image.shape[-2:]
+    for s in scales:
+        x = F.interpolate(image, size=(int(size[0]*s), int(size[1]*s)), mode='bilinear', align_corners=True)
+        pred = inference(feature_extractor, classifier, x, label, flip=False)
+        if output is None:
+            output = pred
+        else:
+            output = output + pred
+        if flip:
+            x_flip = torch.flip(x, [3])
+            pred = inference(feature_extractor, classifier, x_flip, label, flip=False)
+            output = output + pred.flip(3)
+    if flip:
+        return output/len(scales)/2
+    return output/len(scales)
+
 def get_color_palette(pred, palette):
     """
-        :pred: H * W numpy array with 0 and 1
+        :pred: H * W numpy array with labelId
     """
     label = Image.fromarray(pred.astype('uint8')).convert('P')
     label.putpalette(palette)

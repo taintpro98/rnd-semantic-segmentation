@@ -2,6 +2,7 @@ import argparse
 import os
 
 import torch
+from torch.utils.data import ConcatDataset
 import torch.nn.functional as F
 
 from core.configs import cfg
@@ -13,6 +14,8 @@ from core.datasets.func import collate_fn
 def main(name, cfg, local_rank, distributed):
     src_train_data = build_dataset(cfg, mode='train', is_source=True)
     tgt_train_data = build_dataset(cfg, mode='train', is_source=False)
+    duplicate_tgt_data = ConcatDataset([tgt_train_data] * 9)
+
     src_collate_fn = build_collate_fn(cfg)
 
     if distributed:
@@ -24,7 +27,7 @@ def main(name, cfg, local_rank, distributed):
     
     src_train_loader = torch.utils.data.DataLoader(
         src_train_data, 
-        batch_size=cfg.SOLVER.BATCH_SIZE, 
+        batch_size=cfg.SOLVER.BATCH_SIZE//2, 
         shuffle=(src_train_sampler is None), 
         num_workers=4, 
         pin_memory=True, 
@@ -33,8 +36,9 @@ def main(name, cfg, local_rank, distributed):
         drop_last=True
     )
     tgt_train_loader = torch.utils.data.DataLoader(
-        tgt_train_data, 
-        batch_size=cfg.SOLVER.BATCH_SIZE, 
+        # tgt_train_data, 
+        duplicate_tgt_data,
+        batch_size=cfg.SOLVER.BATCH_SIZE//2, 
         shuffle=(tgt_train_sampler is None), 
         num_workers=4, 
         pin_memory=True, 

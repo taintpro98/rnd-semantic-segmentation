@@ -27,7 +27,7 @@ from torch.utils.tensorboard import SummaryWriter
 from core.configs import cfg
 from core.datasets.build import build_dataset
 from core.models.build import build_feature_extractor, build_classifier
-from core.utils.utility import mkdir, get_color_palette, inference, strip_prefix_if_present, load_json, load_text
+from core.utils.utility import mkdir, get_color_palette, inference, multi_scale_inference, strip_prefix_if_present, load_json, load_text
 from core.models.classifiers.pranet.PraNet_Res2Net import PraNet
 from core.models.classifiers.attn.eff import Encoder, Decoder, AttnEfficientNetUnet
 
@@ -175,6 +175,7 @@ def get_output(cfg, name, resume, image, label):
     if name.startswith("aspp"):
         feature_extractor, classifier = build_model(cfg, name, resume)
         output = inference(feature_extractor, classifier, image, label, flip=False) # tensor (B=1) x C x H x W    
+        # output = multi_scale_inference(feature_extractor, classifier, image, label, flip=False) # tensor (B=1) x C x H x W           
         # pred = output.max(1)[1]
         output = output.cpu().numpy()
         output = output.transpose(0,2,3,1) 
@@ -259,11 +260,12 @@ if __name__ == "__main__":
 
         res.append(img)
         if config["labeled"] == "id":
-            gt = np.array(lab)
+            gt = np.array(lab, dtype=np.float32)
             label_copy = cfg.MODEL.NUM_CLASSES * np.ones(gt.shape[:2], dtype=np.float32)
             for k, v in config["id_to_trainid"].items():
-                label_copy[gt == k] = v
-            gt = Image.fromarray(label_copy)
+                label_copy[gt == int(k)] = v
+            # gt = Image.fromarray(label_copy)
+            gt = label_copy
             palette = config["palette"] + [0, 0, 0]
             result = get_color_palette(gt, palette)
             res.append(result)

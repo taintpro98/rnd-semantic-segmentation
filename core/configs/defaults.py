@@ -88,3 +88,4 @@ _C.TEST.BATCH_SIZE = 1
 
 _C.OUTPUT_DIR = "."
 _C.resume = ""
+_C.PSEUDO_DIR = ""
