@@ -2,7 +2,9 @@ MODEL:
   NAME: "deeplab_resnet101"
   WEIGHTS: "https://download.pytorch.org/models/resnet101-5d3b4d8f.pth"
   FREEZE_BN: False
+  NUM_CLASSES: 19
 DATASETS:
+  DATASET_DIR: "../datasets"
   SOURCE_TRAIN: "cityscapes_self_distill_train"
   TEST: "cityscapes_val"
 INPUT:
@@ -14,8 +16,13 @@ INPUT:
   CONTRAST: 0.5
   SATURATION: 0.5
   HUE: 0.2
+AUG:
+  NAME: "aspp"
+  COLLATE: "aspp"
 SOLVER:
   BASE_LR: 5e-4
   EPOCHS: 10
   BATCH_SIZE: 8
   CHECKPOINT_PERIOD: 1
+TEST: 
+  BATCH_SIZE: 1

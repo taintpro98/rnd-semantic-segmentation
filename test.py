@@ -12,7 +12,7 @@ from core.utils.utility import load_json, setup_logger
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-def test(cfg, config):
+def test(cfg, config, args):
     name = config["name"]
     logger = setup_logger(name, cfg.OUTPUT_DIR, None)
     logger.info("#"*20 + " Start Testing " + "#"*20)
@@ -30,7 +30,7 @@ def test(cfg, config):
     )
 
     if name.startswith("aspp"):
-        tester = ASPPTester(cfg, device, test_loader, logger)
+        tester = ASPPTester(cfg, device, test_loader, logger, config["palette"], saveres=args.saveres)
     elif name.startswith("pranet"):
         tester = PranetTester(cfg, device, test_loader, logger)
     elif name.startswith("attn"):
@@ -47,7 +47,7 @@ def main():
         help="path to config file",
         type=str,
     )
-    parser.add_argument('-c', '--config_path', default='renders/bli.json', help='path to config')
+    parser.add_argument('-c', '--config_path', default='renders/cityscapes.json', help='path to config')
     parser.add_argument(
         "opts",
         help="Modify config options using the command-line",
@@ -65,7 +65,7 @@ def main():
     cfg.freeze()
 
     print("Loaded configuration file {}".format(args.config_file))
-    test(cfg, config)
+    test(cfg, config, args)
 
 if __name__ == "__main__":
     main()

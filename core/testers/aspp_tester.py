@@ -1,5 +1,6 @@
 from tqdm import tqdm
 import numpy as np
+import os
 
 import torch
 
@@ -7,11 +8,13 @@ from core.models.build import build_feature_extractor, build_classifier
 from core.utils.utility import strip_prefix_if_present, inference, multi_scale_inference, intersectionAndUnion, intersectionAndUnionGPU, AverageMeter, get_color_palette
 
 class ASPPTester:
-    def __init__(self, cfg, device, test_loader, logger):
+    def __init__(self, cfg, device, test_loader, logger, palette, saveres=False):
         self.cfg = cfg
         self.logger = logger
         self.test_loader = test_loader
         self.device = device
+        self.palette = palette
+        self.saveres = saveres
         self.feature_extractor = build_feature_extractor(cfg)
         self.feature_extractor.to(device)
     
@@ -33,11 +36,11 @@ class ASPPTester:
         """
         dataset_name = self.cfg.DATASETS.TEST
         output_folder = os.path.join(self.cfg.PSEUDO_DIR, "inference", dataset_name)
-        mkdir(output_folder)
+        os.makedirs(output_folder)
         output = output.cpu().numpy().squeeze() # numpy array C x H x W
         pred = output.argmax(0) # numpy array H x W
-        mask = get_color_palette(pred, )
-        mask_filename = name + '.png'
+        mask = get_color_palette(pred, self.palette)
+        mask_filename = name[0] + '.png'
         mask.save(os.path.join(output_folder, mask_filename))
 
     def test(self):
@@ -55,7 +58,7 @@ class ASPPTester:
             output = multi_scale_inference(self.feature_extractor, self.classifier, x, y, flip=False) # tensor B x C x H x W
 
             pred = output.max(1)[1] # tensor B, H, W
-            if saveres:
+            if self.saveres:
                 self.save_distill(output, name)
                 
             intersection, union, target, res = intersectionAndUnionGPU(pred, y, self.cfg.MODEL.NUM_CLASSES, self.cfg.INPUT.IGNORE_LABEL)
