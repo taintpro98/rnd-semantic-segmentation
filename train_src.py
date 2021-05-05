@@ -7,6 +7,7 @@ from core.configs import cfg
 from core.trainers.aspp_trainer import ASPPTrainer
 from core.trainers.pranet_trainer import PraNetTrainer
 from core.trainers.attn_trainer import AttnTrainer, AttnWrapTrainer
+from core.trainers.gald_trainer import GALDTrainer
 from core.datasets.build import build_dataset, build_collate_fn
 
 def main(name, cfg, local_rank):
@@ -29,6 +30,8 @@ def main(name, cfg, local_rank):
         trainer = PraNetTrainer(name, cfg, train_loader, local_rank)
     elif name == "attn":
         trainer = AttnTrainer(name, cfg, train_loader, local_rank)
+    elif name == "gald":
+        trainer = GALDTrainer(name, cfg, train_loader, local_rank)
     trainer.train()
 
 if __name__ == "__main__":

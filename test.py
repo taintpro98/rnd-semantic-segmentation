@@ -16,6 +16,7 @@ def test(cfg, config, args):
     name = config["name"]
     logger = setup_logger(name, cfg.OUTPUT_DIR, None)
     logger.info("#"*20 + " Start Testing " + "#"*20)
+    logger.info("INPUT_SIZE_TEST: {}".format(cfg.INPUT.INPUT_SIZE_TEST))
 
     test_data = build_dataset(cfg, mode='test', is_source=False)
     collate_fn = build_collate_fn(cfg)
@@ -47,6 +48,7 @@ def main():
         help="path to config file",
         type=str,
     )
+    parser.add_argument('--saveres', action="store_true", help='save the result')
     parser.add_argument('-c', '--config_path', default='renders/cityscapes.json', help='path to config')
     parser.add_argument(
         "opts",
