@@ -1,4 +1,6 @@
 import os
+import numpy as np
+from datetime import datetime
 
 import torch
 import torch.nn.functional as F
@@ -7,67 +9,71 @@ from base.base_trainer import BaseTrainer
 from core.models.classifiers.gcpacc.gcpa_cc2 import GCPADecoder, GCPAEncoder
 from core.utils.adapt_lr import CosineAnnealingWarmupLR, GradualWarmupScheduler
 
-def expand_target(x, n_class, mode='softmax'):
-    """
-        Converts NxDxHxW label image to NxCxDxHxW, where each label is stored in a separate channel
-        :param input: 4D input image (NxDxHxW)
-        :param C: number of channels/labels
-        :return: 5D output image (NxCxDxHxW)
-        """
-    assert x.dim() == 4
-    shape = list(x.size())
-    shape.insert(1, n_class)
-    shape = tuple(shape)
-    xx = torch.zeros(shape)
-    if mode.lower() == 'softmax':
-        xx[:, 1, :, :, :] = (x == 1)
-        xx[:, 2, :, :, :] = (x == 2)
-        xx[:, 3, :, :, :] = (x == 3)
-    if mode.lower() == 'sigmoid':
-        xx[:, 0, :, :, :] = (x == 1)
-        xx[:, 1, :, :, :] = (x == 2)
-        xx[:, 2, :, :, :] = (x == 3)
-    return xx.to(x.device)
-
 def flatten(tensor):
     """Flattens a given tensor such that the channel axis is first.
     The shapes are transformed as follows:
-       (N, C, D, H, W) -> (C, N * D * H * W)
+       (N, C, H, W) -> (C, N * H * W)
     """
     C = tensor.size(1)
     # new axis order
     axis_order = (1, 0) + tuple(range(2, tensor.dim()))
-    # Transpose: (N, C, D, H, W) -> (C, N, D, H, W)
+    # Transpose: (N, C, H, W) -> (C, N, H, W)
     transposed = tensor.permute(axis_order)
-    # Flatten: (C, N, D, H, W) -> (C, N * D * H * W)
+    # Flatten: (C, N, H, W) -> (C, N * H * W)
     return transposed.reshape(C, -1)
 
-def GeneralizedDiceLoss(output, target, eps=1e-5, weight_type='square'):  # Generalized dice loss
+def GeneralizedDiceLoss(output, target, eps=1e-5, weight_type='square', ignore_label=255):
     """
-        Generalised Dice : 'Generalised dice overlap as a deep learning loss function for highly unbalanced segmentations'
+        :param output: tensor (N, C, H, W) with not yet softmax score
+        :param target: tensor (N, C, H, W) with one-hot column or (N, H, W) with labels
     """
+    output = flatten(output) # [N, C, H, W] -> [C, N * H * W]
+    output = F.softmax(output, dim=0)
+    num_classes = output.size(0)
 
-    # target = target.float()
+    if target.dim() == 3:
+        # target shape [N, H, W]
+        target = target.view(-1) # [N * H * W]
+        tmp = torch.ones_like(torch.empty(target.size(0)))
+        tmp[target == ignore_label] = 0
+        tmp = torch.stack([tmp] * num_classes, dim=0)
 
-    if target.dim() == 4:
-        # target[target == 4] = 3  # label [4] -> [3]
-        target = expand_target(target, n_class=output.size()[1])  # [N,H,W,D] -> [N,4，H,W,D]
+        # tmp = np.ones(target.size(0)).astype(int) # numpy array [N*H*W] with all one
+        # tmp[target.cpu() == ignore_label] = 0
+        # tmp = np.concatenate([[tmp]] * num_classes, axis=0) # numpy array [C, N*H*W]
+        # tmp = torch.from_numpy(tmp).cuda()
+        output = output * tmp.cuda()
 
-    output = flatten(output)[1:, ...]  # transpose [N,4，H,W,D] -> [4，N,H,W,D] -> [3, N*H*W*D] voxels
-    target = flatten(target)[1:, ...]  # [class, N*H*W*D]
-
-    target_sum = target.sum(-1)  # sub_class_voxels [3,1] -> 3个voxels
-    if weight_type == 'square':
-        class_weights = 1. / (target_sum * target_sum + eps)
-    elif weight_type == 'identity':
-        class_weights = 1. / (target_sum + eps)
-    elif weight_type == 'sqrt':
-        class_weights = 1. / (torch.sqrt(target_sum) + eps)
+        target[target == ignore_label] = num_classes # convert ignore label 255 to max label
+        target = F.one_hot(target, num_classes+1).permute(1, 0)[:-1, ...] # [C, N*H*W]
+        
     else:
-        raise ValueError('Check out the weight_type :', weight_type)
+        target = flatten(target) # [N, C, H, W] -> [C, N * H * W] 
+
+    target_sum = target.sum(-1) # [C, ]
+    if weight_type == 'square':
+        class_weights = 1. / (target_sum * target_sum + eps) # [C, ]
+    elif weight_type == 'identity':
+        class_weights = 1. / (target_sum + eps) # [C, ]
+    elif weight_type == 'sqrt':
+        class_weights = 1. / (torch.sqrt(target_sum) + eps) # [C, ]
+    else:
+        raise ValueError('Check out the weight_type: ', weight_type)
+
+    intersect = (output * target).sum(-1) # [C, ]
+    intersect_sum = (intersect * class_weights).sum() # scalar  
+    denominator = (output * output + target * target).sum(-1) # [C, ]
+    denominator_sum = (denominator * class_weights).sum() + eps #scalar
+
+    # for i in range(output.size(0)):
+    #     lossi = 2 * intersect[i] / (denominator[i] + eps)
+    
+    # logging.info('1:{:.4f} | 2:{:.4f} | 4:{:.4f}'.format(loss1.data, loss2.data, loss3.data))
+
+    return 1 - 2. * intersect_sum / denominator_sum  
 
 class GALDTrainer(BaseTrainer):
-    def __init__(self, name, cfg, train_loader, local_rank):
+    def __init__(self, name, cfg, train_loader, local_rank, logger=None):
         super(GALDTrainer, self).__init__(name, cfg, train_loader, local_rank, logger)
 
     def init_params(self):
@@ -91,7 +97,7 @@ class GALDTrainer(BaseTrainer):
         torch.save(checkpoint, save_path)
 
     def _train_epoch(self, epoch):
-        for i, (src_input, src_label) in enumerate(self.train_loader):
+        for i, (src_input, src_label, _) in enumerate(self.train_loader):
             self.optimizer_enc.zero_grad()
             self.optimizer_dec.zero_grad()
 
@@ -99,12 +105,17 @@ class GALDTrainer(BaseTrainer):
             src_label = src_label.cuda(non_blocking=True).long()
 
             hardnetout = self.encoder(src_input)
-            out5, out4, out3, out2 = self.decoder(hardnetout)
+            out5, out4, out3, out2 = self.decoder(src_input, hardnetout)
 
-            loss5 = GeneralizedDiceLoss(out5, src_label)
-            loss4 = GeneralizedDiceLoss(out4, src_label)
-            loss3 = GeneralizedDiceLoss(out3, src_label)
-            loss2 = GeneralizedDiceLoss(out2, src_label)
+            # loss5 = GeneralizedDiceLoss(out5, src_label)
+            # loss4 = GeneralizedDiceLoss(out4, src_label)
+            # loss3 = GeneralizedDiceLoss(out3, src_label)
+            # loss2 = GeneralizedDiceLoss(out2, src_label)
+
+            loss5 = self.criterion(out5, src_label)
+            loss4 = self.criterion(out4, src_label)
+            loss3 = self.criterion(out3, src_label)
+            loss2 = self.criterion(out2, src_label)
 
             # loss = loss2 + loss3 + loss4 + loss5
             loss = loss2 * 1 + loss3 * 0.8 + loss4 * 0.6 + loss5 * 0.4
@@ -113,11 +124,24 @@ class GALDTrainer(BaseTrainer):
             self.optimizer_enc.step()
             self.optimizer_dec.step()
 
+            self.iteration+=1
+
+            if i % 20 == 0 or i == len(self.train_loader):
+                self.logger.info('{} Epoch [{:03d}/{:03d}], Step [{:04d}/{:04d}], loss: [{:0.4f}], encode_learning_rate: [{:0.8f}], decode_learning_rate: [{:0.8f}]'.format(datetime.now(), epoch, self.cfg.SOLVER.EPOCHS, i, len(self.train_loader), loss.item(), self.optimizer_enc.param_groups[0]['lr'], self.optimizer_dec.param_groups[0]['lr']))
+
+        save_path = self.cfg.OUTPUT_DIR
+        os.makedirs(save_path, exist_ok=True)
+        if epoch % self.cfg.SOLVER.CHECKPOINT_PERIOD == 0:
+            self._save_checkpoint(epoch, save_path + 'Gald-%d.pth' % epoch)
+            self.logger.info('[Saving Snapshot:] ' + save_path + 'Gald-{}.pth'.format(epoch))
+
     def train(self):
         save_to_disk = self.local_rank == 0
         self.iteration = (self.start_epoch - 1) * len(self.train_loader)
 
-        self.logger.info("#"*20 + " Start Attn Training " + "#"*20)
+        self.criterion = torch.nn.CrossEntropyLoss(ignore_index=255)
+
+        self.logger.info("#"*20 + " Start Gald Training " + "#"*20)
 
         self.encoder.train()
         self.decoder.train()

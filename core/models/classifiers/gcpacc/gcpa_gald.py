@@ -3,9 +3,9 @@ import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from ...contextagg import GALDHead, GALDBlock
+from core.models.classifiers.gcpacc.contextagg import GALDHead, GALDBlock
 from torch.nn import BatchNorm2d, BatchNorm1d
-
+from core.models.classifiers.gcpacc.encoders import res2net50_v1b_26w_4s
 
 class CA(nn.Module):
     def __init__(self, in_channel_left, in_channel_down):
@@ -558,10 +558,6 @@ class SA(nn.Module):
         w, b = down_1[:, :256, :, :], down_1[:, 256:, :, :]
 
         return F.relu(w * left + b, inplace=True)
-
-
-from ...encoders import res2net50_v1b_26w_4s
-
 
 class GCPAGALDNet(nn.Module):
     def __init__(self):

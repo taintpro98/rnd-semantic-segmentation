@@ -10,7 +10,7 @@ from core.models.classifiers.gcpacc.contextagg import (
     # SmallLocalAttenModule,
 )
 from torch.nn import BatchNorm2d, BatchNorm1d
-from .gcpa_gald import FAM
+from core.models.classifiers.gcpacc.gcpa_gald import FAM
 from core.models.classifiers.gcpacc.encoders import hardnet
 
 class GCPAEncoder(nn.Module):
@@ -48,7 +48,7 @@ class GCPADecoder(nn.Module):
         self.local_attention_3 = LocalAttenModule(interplanes)
         self.local_attention_2 = LocalAttenModule(interplanes)
 
-    def forward(self, hardnetout):
+    def forward(self, x, hardnetout):
         out2 = hardnetout[0]  # [24, 128, 88, 88]
         out3 = hardnetout[1]  # [24, 320, 44, 44]
         out4 = hardnetout[2]  # [24, 640, 22, 22]

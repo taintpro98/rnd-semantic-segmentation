@@ -59,4 +59,4 @@ if __name__ == "__main__":
     cfg.merge_from_list(args.opts)
     cfg.freeze()
 
-    main("aspp", cfg, args.local_rank)
+    main("gald", cfg, args.local_rank)

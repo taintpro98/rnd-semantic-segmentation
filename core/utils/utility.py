@@ -304,6 +304,12 @@ def probs_to_onehot(probs, thres=0.5):
     else:
         return (probs > thres).int()
 
+# def labels_to_onehot(label):
+#     """
+#     Convert [N, H, W] tensor label to [N, C, H, W] tensor one-hot
+#     """
+#     F.one_hot(label, num_classes).permute(0, 3, 1, 2)
+
 # class AverageMeter(object):
 #     """Computes and stores the average and current value"""
 #     def __init__(self):
