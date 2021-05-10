@@ -8,6 +8,7 @@ from core.datasets.build import build_dataset, build_collate_fn
 from core.testers.aspp_tester import ASPPTester
 from core.testers.pranet_tester import PranetTester
 from core.testers.attn_tester import AttnTester, AttnWrapTester
+from core.testers.gald_tester import GALDTester
 from core.utils.utility import load_json, setup_logger
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -36,6 +37,8 @@ def test(cfg, config, args):
         tester = PranetTester(cfg, device, test_loader, logger)
     elif name.startswith("attn"):
         tester = AttnTester(cfg, device, test_loader, logger)
+    elif name.startswith("gald"):
+        tester = GALDTester(cfg, device, test_loader, logger, palette)
     tester._load_checkpoint()
     tester.test()
 

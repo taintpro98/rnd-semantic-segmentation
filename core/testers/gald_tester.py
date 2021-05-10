@@ -54,8 +54,21 @@ class GALDTester:
             x = x.cuda(non_blocking=True)
             y = y.cuda(non_blocking=True).long()
 
-            output = inference(self.feature_extractor, self.classifier, x, y, flip=False) # tensor B x C x H x W
-            # output = multi_scale_inference(self.feature_extractor, self.classifier, x, y, flip=False) # tensor B x C x H x W
+            hardnetout = self.encoder(x)
+            res5, res4, res3, res2 = self.decoder(x, hardnetout)
+
+
+            name = os.path.splitext(filename[0])[0]
+            ext = os.path.splitext(filename[0])[1]
+            gt = gt[0][0]
+            gt = np.asarray(gt, np.float32)
+
+            res = res2
+            res = F.upsample(
+                res, size=gt.shape, mode="bilinear", align_corners=False
+            )
+            res = res.sigmoid().data.cpu().numpy().squeeze()
+            res = (res - res.min()) / (res.max() - res.min() + 1e-8)
 
             pred = output.max(1)[1] # tensor B, H, W
             if self.saveres:
