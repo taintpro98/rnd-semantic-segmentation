@@ -91,8 +91,8 @@ class GALDTrainer(BaseTrainer):
             'iteration': self.iteration, 
             'encoder': self.encoder.state_dict(), 
             'decoder': self.decoder.state_dict(),
-            'optimizer_enc': self.optimizer_fea.state_dict(), 
-            'optimizer_dec': self.optimizer_cls.state_dict()
+            'optimizer_enc': self.optimizer_enc.state_dict(), 
+            'optimizer_dec': self.optimizer_dec.state_dict()
         }
         torch.save(checkpoint, save_path)
 
@@ -132,7 +132,7 @@ class GALDTrainer(BaseTrainer):
         save_path = self.cfg.OUTPUT_DIR
         os.makedirs(save_path, exist_ok=True)
         if epoch % self.cfg.SOLVER.CHECKPOINT_PERIOD == 0:
-            self._save_checkpoint(epoch, save_path + 'Gald-%d.pth' % epoch)
+            self._save_checkpoint(epoch, os.path.join(save_path, 'Gald-%d.pth' % epoch))
             self.logger.info('[Saving Snapshot:] ' + save_path + 'Gald-{}.pth'.format(epoch))
 
     def train(self):

@@ -4,10 +4,10 @@ import os
 
 import torch
 
-from core.models.build import build_feature_extractor, build_classifier
-from core.utils.utility import strip_prefix_if_present, inference, multi_scale_inference, intersectionAndUnion, intersectionAndUnionGPU, AverageMeter, get_color_palette
+from core.models.classifiers.gcpacc.gcpa_cc2 import GCPADecoder, GCPAEncoder
+from core.utils.utility import intersectionAndUnionGPU, AverageMeter, get_color_palette
 
-class ASPPTester:
+class GALDTester:
     def __init__(self, cfg, device, test_loader, logger, palette, saveres=False):
         self.cfg = cfg
         self.logger = logger
@@ -15,12 +15,12 @@ class ASPPTester:
         self.device = device
         self.palette = palette
         self.saveres = saveres
-        self.feature_extractor = build_feature_extractor(cfg)
-        self.feature_extractor.to(device)
-    
-        self.classifier = build_classifier(cfg)
-        self.classifier.to(device)
 
+        self.encoder = GCPAEncoder()
+        self.decoder = GCPADecoder()
+        self.encoder.to(device)
+        self.decoder.to(device)
+    
     def _load_checkpoint(self):
         self.logger.info("Loading checkpoint from {}".format(self.cfg.resume))
         checkpoint = torch.load(self.cfg.resume, map_location=self.device)
@@ -44,8 +44,8 @@ class ASPPTester:
         mask.save(os.path.join(output_folder, mask_filename))
 
     def test(self):
-        self.feature_extractor.eval()
-        self.classifier.eval()
+        self.encoder.eval()
+        self.decoder.eval()
 
         self.meter = AverageMeter()
 
