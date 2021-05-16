@@ -97,7 +97,7 @@ class AttnFada:
                 src_endpoints = self.attn.encoder(src_input)
                 src_outputs = self.attn.decoder(src_endpoints)
                 src_output = src_outputs[0]
-                src_output = torch.sigmoid(src_output) # B x C x H x W
+                # src_output = torch.sigmoid(src_output) # B x C x H x W
 
                 temperature = 1.8
                 src_output = src_output.div(temperature)
@@ -111,7 +111,7 @@ class AttnFada:
                 tgt_endpoints = self.attn.encoder(tgt_input)
                 tgt_outputs = self.attn.decoder(tgt_endpoints)
                 tgt_output = tgt_outputs[0]
-                tgt_output = torch.sigmoid(tgt_output) # B x C x H x W
+                # tgt_output = torch.sigmoid(tgt_output) # B x C x H x W
                 tgt_output = tgt_output.div(temperature)
 
                 tgt_soft_label = F.softmax(tgt_output, dim=1)

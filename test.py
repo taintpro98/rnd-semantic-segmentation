@@ -18,7 +18,6 @@ def test(cfg, config, args):
     logger = setup_logger(name, cfg.OUTPUT_DIR, None)
     logger.info("#"*20 + " Start Testing " + "#"*20)
     logger.info("INPUT_SIZE_TEST: {}".format(cfg.INPUT.INPUT_SIZE_TEST))
-
     test_data = build_dataset(cfg, mode='test', is_source=False)
     collate_fn = build_collate_fn(cfg)
     test_loader = torch.utils.data.DataLoader(
@@ -38,7 +37,7 @@ def test(cfg, config, args):
     elif name.startswith("attn"):
         tester = AttnTester(cfg, device, test_loader, logger)
     elif name.startswith("gald"):
-        tester = GALDTester(cfg, device, test_loader, logger, palette)
+        tester = GALDTester(cfg, device, test_loader, logger, config["palette"], saveres=args.saveres)
     tester._load_checkpoint()
     tester.test()
 

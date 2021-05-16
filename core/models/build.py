@@ -44,6 +44,10 @@ def build_adversarial_discriminator(cfg, num_features=None, mid_nc=256):
         if num_features is None:
             num_features = 1408
         model_D = PixelDiscriminator(num_features, mid_nc, num_classes=cfg.MODEL.NUM_CLASSES)
+    elif backbone_name.startswith('hardnet'):
+        if num_features is None:
+            num_features = 1024
+        model_D = PixelDiscriminator(num_features, mid_nc, num_classes=cfg.MODEL.NUM_CLASSES)
     else:
         raise NotImplementedError
     return model_D

@@ -84,9 +84,9 @@ class ASPPTrainer(BaseTrainer):
                 src_label = src_label.cuda(non_blocking=True).long()
         
                 size = src_label.shape[-2:]
-                pred = self.classifier(self.feature_extractor(src_input), size)
+                output = self.classifier(self.feature_extractor(src_input), size) # float tensor B x C x H x W
         
-                loss = criterion(pred, src_label)
+                loss = criterion(output, src_label)
                 loss.backward()
 
                 self.optimizer_fea.step()

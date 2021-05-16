@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 from base.base_trainer import BaseTrainer
 from core.models.classifiers.gcpacc.gcpa_cc2 import GCPADecoder, GCPAEncoder
-from core.utils.adapt_lr import CosineAnnealingWarmupLR, GradualWarmupScheduler
+from core.utils.adapt_lr import CosineAnnealingWarmupLR, GradualWarmupScheduler, adjust_learning_rate
 
 def flatten(tensor):
     """Flattens a given tensor such that the channel axis is first.
@@ -82,8 +82,8 @@ class GALDTrainer(BaseTrainer):
         self.encoder.to(self.device)
         self.decoder.to(self.device)
 
-        self.optimizer_enc = torch.optim.Adam(self.encoder.parameters(), lr=self.cfg.SOLVER.BASE_LR, weight_decay=self.cfg.SOLVER.WEIGHT_DECAY)
-        self.optimizer_dec = torch.optim.Adam(self.decoder.parameters(), lr=self.cfg.SOLVER.BASE_LR*10, weight_decay=self.cfg.SOLVER.WEIGHT_DECAY)
+        self.optimizer_enc = torch.optim.Adam(self.encoder.parameters(), lr=self.cfg.SOLVER.BASE_LR)
+        self.optimizer_dec = torch.optim.Adam(self.decoder.parameters(), lr=self.cfg.SOLVER.BASE_LR*10)
 
     def _save_checkpoint(self, epoch, save_path):
         checkpoint = {
@@ -96,8 +96,30 @@ class GALDTrainer(BaseTrainer):
         }
         torch.save(checkpoint, save_path)
 
+    def _load_checkpoint(self):
+        self.checkpoint = torch.load(self.cfg.resume, map_location=self.device)
+        self.encoder.load_state_dict(self.checkpoint['encoder'])
+        self.decoder.load_state_dict(self.checkpoint['decoder'])
+        if "optimizer_enc" in self.checkpoint:
+            self.logger.info("Loading encoder optimizer from {}".format(self.cfg.resume))
+            self.optimizer_enc.load_state_dict(self.checkpoint['optimizer_enc'])
+        if "optimizer_dec" in self.checkpoint:
+            self.logger.info("Loading decoder optimizer from {}".format(self.cfg.resume))
+            self.optimizer_dec.load_state_dict(self.checkpoint['optimizer_dec'])
+        if "iteration" in self.checkpoint:
+            self.iteration = self.checkpoint['iteration']
+        if "epoch" in self.checkpoint:
+            self.start_epoch = self.checkpoint['epoch'] + 1
+
     def _train_epoch(self, epoch):
+        max_iter = self.cfg.SOLVER.EPOCHS * len(self.train_loader)
         for i, (src_input, src_label, _) in enumerate(self.train_loader):
+            current_lr = adjust_learning_rate(self.cfg.SOLVER.LR_METHOD, self.cfg.SOLVER.BASE_LR, self.iteration, max_iter, power=self.cfg.SOLVER.LR_POWER)
+            for index in range(len(self.optimizer_enc.param_groups)):
+                self.optimizer_enc.param_groups[index]['lr'] = current_lr
+            for index in range(len(self.optimizer_dec.param_groups)):
+                self.optimizer_dec.param_groups[index]['lr'] = current_lr*10
+            
             self.optimizer_enc.zero_grad()
             self.optimizer_dec.zero_grad()
 
@@ -146,12 +168,12 @@ class GALDTrainer(BaseTrainer):
         self.encoder.train()
         self.decoder.train()
 
-        cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_enc, 100, eta_min=0, last_epoch=-1)
-        scheduler_enc = GradualWarmupScheduler(self.optimizer_enc, multiplier=8, total_epoch=5, after_scheduler=cosine_scheduler)
-        cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_dec, 100, eta_min=0, last_epoch=-1)
-        scheduler_dec = GradualWarmupScheduler(self.optimizer_dec, multiplier=8, total_epoch=5, after_scheduler=cosine_scheduler)
+        # cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_enc, 100, eta_min=0, last_epoch=-1)
+        # scheduler_enc = GradualWarmupScheduler(self.optimizer_enc, multiplier=8, total_epoch=5, after_scheduler=cosine_scheduler)
+        # cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_dec, 100, eta_min=0, last_epoch=-1)
+        # scheduler_dec = GradualWarmupScheduler(self.optimizer_dec, multiplier=8, total_epoch=5, after_scheduler=cosine_scheduler)
            
         for epoch in range(self.start_epoch, self.cfg.SOLVER.EPOCHS+1):
             self._train_epoch(epoch)
-            scheduler_enc.step()
-            scheduler_dec.step()
+            # scheduler_enc.step()
+            # scheduler_dec.step()
