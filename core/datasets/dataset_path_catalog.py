@@ -3,6 +3,8 @@ from .cityscapes import cityscapesDataSet, cityscapesSelfDistillDataSet
 # from .cityscapes_self_distill import cityscapesSelfDistillDataSet
 # from .synthia import synthiaDataSet
 from .gta5 import GTA5FoldDataSet
+from .carla import CarlaFoldDataSet
+from .merge import MergeDataSet
 from .kvasir import KvasirDataSet, KvasirFoldDataset
 from .bli import BLIDataset
 
@@ -56,7 +58,16 @@ class DatasetCatalog(object):
         "bli_val": {
             "data_dir": "BLI/test",
             "data_list": ""
+        },
+        "carla_train": {
+            "data_dir": "carla",
+            "data_list": "carla_train_list.txt"
+        },
+        "merge_train": {
+            "data_dir": "dataset",
+            "data_list": "merge_train_list.txt"
         }
+
     }
 
     @staticmethod
@@ -112,5 +123,21 @@ class DatasetCatalog(object):
                 data_list=os.path.join(data_dir, attrs["data_list"]),
             )
             return BLIDataset(cfg, args["root"], mode=mode, transform=transform)
+        elif "carla" in name:
+            data_dir = cfg.DATASETS.DATASET_DIR
+            attrs = DatasetCatalog.DATASETS[name]
+            args = dict(
+                root=os.path.join(data_dir, attrs["data_dir"]),
+                data_list=os.path.join(data_dir, attrs["data_list"]),
+            )
+            return CarlaFoldDataSet(cfg, args["root"], mode=mode, cross_val=cross_val, transform=transform)
+        elif "merge" in name:
+            data_dir = cfg.DATASETS.DATASET_DIR
+            attrs = DatasetCatalog.DATASETS[name]
+            args = dict(
+                root=data_dir,
+                data_list = os.path.join(data_dir, attrs["data_list"]),
+            )
+            return MergeDataSet(cfg, args["root"], mode=mode, cross_val=cross_val, transform=transform)
 
         raise RuntimeError("Dataset not available: {}".format(name))
