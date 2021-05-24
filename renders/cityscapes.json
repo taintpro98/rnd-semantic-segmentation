@@ -1,6 +1,6 @@
 {
     "root": "runs",
-    "name": "aspp_fada_test",
+    "name": "gald_fada",
     "tensorboard": false,
     "dir": "/mnt/data/taint/visualize/ignored-cityscapes",
     "labeled": "id",

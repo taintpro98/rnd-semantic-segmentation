@@ -13,7 +13,7 @@ from core.utils.adapt_lr import adjust_learning_rate
 class AsppFada:
     def __init__(self, name, cfg, src_train_loader, tgt_train_loader, local_rank):
         self.cfg = cfg
-        self.logger = setup_logger(name, cfg.OUTPUT_DIR, local_rank)
+        self.logger = setup_logger(name + "_train", cfg.OUTPUT_DIR, local_rank)
         self.aspp = ASPPTrainer(name, cfg, src_train_loader, local_rank, self.logger) #loaded checkpoints and src_train_loader
         self.fada = FADAAdapter(cfg, tgt_train_loader, self.aspp.device)
         if cfg.resume:

@@ -13,7 +13,7 @@ from core.utils.adapt_lr import adjust_learning_rate, GradualWarmupScheduler, Co
 class GaldFada:
     def __init__(self, name, cfg, src_train_loader, tgt_train_loader, local_rank):
         self.cfg = cfg
-        self.logger = setup_logger(name, cfg.OUTPUT_DIR, local_rank)
+        self.logger = setup_logger(name + "_train", cfg.OUTPUT_DIR, local_rank)
         self.gald = GALDTrainer(name, cfg, src_train_loader, local_rank, self.logger)
         self.fada = FADAAdapter(cfg, tgt_train_loader, self.gald.device)
         if cfg.resume:

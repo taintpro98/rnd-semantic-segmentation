@@ -15,7 +15,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def test(cfg, config, args):
     name = config["name"]
-    logger = setup_logger(name, cfg.OUTPUT_DIR, None)
+    logger = setup_logger(name + "_test", cfg.OUTPUT_DIR, None)
     logger.info("#"*20 + " Start Testing " + "#"*20)
     logger.info("INPUT_SIZE_TEST: {}".format(cfg.INPUT.INPUT_SIZE_TEST))
     test_data = build_dataset(cfg, mode='test', is_source=False)
