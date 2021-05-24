@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 from core.trainers.aspp_trainer import ASPPTrainer
 from core.adapters.fada_adapter import FADAAdapter
-from core.utils.utility import setup_logger, MetricLogger, soft_label_cross_entropy
+from core.utils.utility import setup_logger, MetricLogger, soft_label_cross_entropy, dump_json
 from core.utils.adapt_lr import adjust_learning_rate
 
 class AsppFada:
@@ -18,6 +18,13 @@ class AsppFada:
         self.fada = FADAAdapter(cfg, tgt_train_loader, self.aspp.device)
         if cfg.resume:
             self.fada._load_checkpoint(self.aspp.checkpoint, self.logger)
+
+        self.lr_data = list()
+        self.D_lr_data = list()
+        self.loss_seg_data = list()
+        self.loss_adv_tgt_data = list()
+        self.loss_D_src_data = list()
+        self.loss_D_tgt_data = list()
 
     def _save_checkpoint(self, adv_epoch, save_path):
         checkpoint = {
@@ -130,6 +137,13 @@ class AsppFada:
                 eta_seconds = meters.time.global_avg * (max_iter - self.iteration)
                 eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
 
+                self.lr_data.append(self.gald.optimizer_enc.param_groups[0]["lr"])
+                self.D_lr_data.append(self.fada.optimizer_D.param_groups[0]['lr'])
+                self.loss_seg_data.append(loss_seg.item())
+                self.loss_adv_tgt_data.append(loss_adv_tgt.item())
+                self.loss_D_src_data.append(loss_D_src.item())
+                self.loss_D_tgt_data.append(loss_D_tgt.item())
+
                 if self.iteration % 20 == 0 or self.iteration == max_iter:
                     self.logger.info(
                         meters.delimiter.join(
@@ -163,3 +177,14 @@ class AsppFada:
                 total_time_str, total_training_time / (self.cfg.SOLVER.EPOCHS)
             )
         )
+
+        mydata = {
+            "learning rate": self.lr_data,
+            "discriminator learning rate": self.D_lr_data,
+            "segmentation loss": self.loss_seg_data,
+            "target adversarial loss": self.loss_adv_tgt_data,
+            "source discriminator loss": self.loss_D_src_data,
+            "target discriminator loss": self.loss_D_tgt_data
+        }
+        json_path = os.path.join(self.cfg.OUTPUT_DIR, "aspp_fada_chart_params.json")
+        dump_json(json_path, mydata)

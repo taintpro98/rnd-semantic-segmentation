@@ -1,10 +1,12 @@
+import json
 import os
-import torch
 import datetime
 import time 
 import logging
 
-from core.utils.utility import MetricLogger, strip_prefix_if_present
+import torch
+
+from core.utils.utility import MetricLogger, strip_prefix_if_present, dump_json
 from core.models.build import build_model, build_feature_extractor, build_classifier
 from core.utils.adapt_lr import adjust_learning_rate, CosineAnnealingWarmupLR
 from base.base_trainer import BaseTrainer
@@ -99,6 +101,10 @@ class ASPPTrainer(BaseTrainer):
                 meters.update(time=batch_time, data=data_time)
                 eta_seconds = meters.time.global_avg * (max_iter - self.iteration)
                 eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
+
+                self.lr_data.append(self.optimizer_fea.param_groups[0]["lr"])
+                self.loss_data.append(loss.item())
+
                 if self.iteration % 20 == 0 or self.iteration == max_iter:
                     self.logger.info(
                         meters.delimiter.join(
@@ -131,3 +137,9 @@ class ASPPTrainer(BaseTrainer):
                 total_time_str, total_training_time / (self.cfg.SOLVER.EPOCHS)
             )
         )
+        mydata = {
+            "learning rate": self.lr_data,
+            "loss": self.loss_data
+        }
+        json_path = os.path.join(output_dir, "aspp_chart_params.json")
+        dump_json(json_path, mydata)

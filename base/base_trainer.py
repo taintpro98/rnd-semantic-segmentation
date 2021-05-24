@@ -13,6 +13,8 @@ class BaseTrainer:
         self.local_rank = local_rank
         self.start_epoch = 1
         self.distributed = False
+        self.lr_data = list()
+        self.loss_data = list()
         # self.num_gpus = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
 
         if torch.cuda.is_available():

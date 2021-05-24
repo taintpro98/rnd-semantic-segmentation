@@ -5,7 +5,7 @@ import os
 import torch
 import torch.nn.functional as F
 
-from core.utils.utility import setup_logger, soft_label_cross_entropy, MetricLogger, generate_scales
+from core.utils.utility import setup_logger, soft_label_cross_entropy, MetricLogger, generate_scales, GeneralizedDiceLoss, dump_json
 from core.trainers.gald_trainer import GALDTrainer
 from core.adapters.fada_adapter import FADAAdapter
 from core.utils.adapt_lr import adjust_learning_rate, GradualWarmupScheduler, CosineAnnealingWarmupLR
@@ -18,6 +18,13 @@ class GaldFada:
         self.fada = FADAAdapter(cfg, tgt_train_loader, self.gald.device)
         if cfg.resume:
             self.fada._load_checkpoint(self.gald.checkpoint, self.logger)
+
+        self.lr_data = list()
+        self.D_lr_data = list()
+        self.loss_seg_data = list()
+        self.loss_adv_tgt_data = list()
+        self.loss_D_src_data = list()
+        self.loss_D_tgt_data = list()
 
     def _save_checkpoint(self, adv_epoch, save_path):
         checkpoint = {
@@ -91,7 +98,8 @@ class GaldFada:
                 # src_output = F.softmax(src_output) 
                 temperature = 1.8
                 src_output = src_output.div(temperature)
-                loss_seg = criterion(src_output, src_label)
+                # loss_seg = criterion(src_output, src_label)
+                loss_seg = GeneralizedDiceLoss(src_output, src_label)
                 loss_seg.backward()
 
                 # generate soft labels
@@ -142,6 +150,13 @@ class GaldFada:
                 eta_seconds = meters.time.global_avg * (max_iter - self.iteration)
                 eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
 
+                self.lr_data.append(self.gald.optimizer_enc.param_groups[0]["lr"])
+                self.D_lr_data.append(self.fada.optimizer_D.param_groups[0]['lr'])
+                self.loss_seg_data.append(loss_seg.item())
+                self.loss_adv_tgt_data.append(loss_adv_tgt.item())
+                self.loss_D_src_data.append(loss_D_src.item())
+                self.loss_D_tgt_data.append(loss_D_tgt.item())
+
                 if self.iteration % 20 == 0 or self.iteration == max_iter:
                     self.logger.info(
                         meters.delimiter.join(
@@ -177,3 +192,14 @@ class GaldFada:
                 total_time_str, total_training_time / (self.cfg.SOLVER.EPOCHS)
             )
         )
+
+        mydata = {
+            "learning rate": self.lr_data,
+            "discriminator learning rate": self.D_lr_data,
+            "segmentation loss": self.loss_seg_data,
+            "target adversarial loss": self.loss_adv_tgt_data,
+            "source discriminator loss": self.loss_D_src_data,
+            "target discriminator loss": self.loss_D_tgt_data
+        }
+        json_path = os.path.join(self.cfg.OUTPUT_DIR, "gald_fada_chart_params.json")
+        dump_json(json_path, mydata)

@@ -8,69 +8,7 @@ import torch.nn.functional as F
 from base.base_trainer import BaseTrainer
 from core.models.classifiers.gcpacc.gcpa_cc2 import GCPADecoder, GCPAEncoder
 from core.utils.adapt_lr import CosineAnnealingWarmupLR, GradualWarmupScheduler, adjust_learning_rate
-
-def flatten(tensor):
-    """Flattens a given tensor such that the channel axis is first.
-    The shapes are transformed as follows:
-       (N, C, H, W) -> (C, N * H * W)
-    """
-    C = tensor.size(1)
-    # new axis order
-    axis_order = (1, 0) + tuple(range(2, tensor.dim()))
-    # Transpose: (N, C, H, W) -> (C, N, H, W)
-    transposed = tensor.permute(axis_order)
-    # Flatten: (C, N, H, W) -> (C, N * H * W)
-    return transposed.reshape(C, -1)
-
-def GeneralizedDiceLoss(output, target, eps=1e-5, weight_type='square', ignore_label=255):
-    """
-        :param output: tensor (N, C, H, W) with not yet softmax score
-        :param target: tensor (N, C, H, W) with one-hot column or (N, H, W) with labels
-    """
-    output = flatten(output) # [N, C, H, W] -> [C, N * H * W]
-    output = F.softmax(output, dim=0)
-    num_classes = output.size(0)
-
-    if target.dim() == 3:
-        # target shape [N, H, W]
-        target = target.view(-1) # [N * H * W]
-        tmp = torch.ones_like(torch.empty(target.size(0)))
-        tmp[target == ignore_label] = 0
-        tmp = torch.stack([tmp] * num_classes, dim=0)
-
-        # tmp = np.ones(target.size(0)).astype(int) # numpy array [N*H*W] with all one
-        # tmp[target.cpu() == ignore_label] = 0
-        # tmp = np.concatenate([[tmp]] * num_classes, axis=0) # numpy array [C, N*H*W]
-        # tmp = torch.from_numpy(tmp).cuda()
-        output = output * tmp.cuda()
-
-        target[target == ignore_label] = num_classes # convert ignore label 255 to max label
-        target = F.one_hot(target, num_classes+1).permute(1, 0)[:-1, ...] # [C, N*H*W]
-        
-    else:
-        target = flatten(target) # [N, C, H, W] -> [C, N * H * W] 
-
-    target_sum = target.sum(-1) # [C, ]
-    if weight_type == 'square':
-        class_weights = 1. / (target_sum * target_sum + eps) # [C, ]
-    elif weight_type == 'identity':
-        class_weights = 1. / (target_sum + eps) # [C, ]
-    elif weight_type == 'sqrt':
-        class_weights = 1. / (torch.sqrt(target_sum) + eps) # [C, ]
-    else:
-        raise ValueError('Check out the weight_type: ', weight_type)
-
-    intersect = (output * target).sum(-1) # [C, ]
-    intersect_sum = (intersect * class_weights).sum() # scalar  
-    denominator = (output * output + target * target).sum(-1) # [C, ]
-    denominator_sum = (denominator * class_weights).sum() + eps #scalar
-
-    # for i in range(output.size(0)):
-    #     lossi = 2 * intersect[i] / (denominator[i] + eps)
-    
-    # logging.info('1:{:.4f} | 2:{:.4f} | 4:{:.4f}'.format(loss1.data, loss2.data, loss3.data))
-
-    return 1 - 2. * intersect_sum / denominator_sum  
+from core.utils.utility import dump_json
 
 class GALDTrainer(BaseTrainer):
     def __init__(self, name, cfg, train_loader, local_rank, logger=None):
@@ -148,6 +86,9 @@ class GALDTrainer(BaseTrainer):
 
             self.iteration+=1
 
+            self.lr_data.append(self.optimizer_fea.param_groups[0]["lr"])
+            self.loss_data.append(loss.item())
+
             if i % 20 == 0 or i == len(self.train_loader):
                 self.logger.info('{} Epoch [{:03d}/{:03d}], Step [{:04d}/{:04d}], loss: [{:0.4f}], encode_learning_rate: [{:0.8f}], decode_learning_rate: [{:0.8f}]'.format(datetime.now(), epoch, self.cfg.SOLVER.EPOCHS, i, len(self.train_loader), loss.item(), self.optimizer_enc.param_groups[0]['lr'], self.optimizer_dec.param_groups[0]['lr']))
 
@@ -177,3 +118,9 @@ class GALDTrainer(BaseTrainer):
             self._train_epoch(epoch)
             # scheduler_enc.step()
             # scheduler_dec.step()
+        mydata = {
+            "learning rate": self.lr_data,
+            "loss": self.loss_data
+        }
+        json_path = os.path.join(self.cfg.OUTPUT_DIR, "gald_chart_params.json")
+        dump_json(json_path, mydata)

@@ -289,7 +289,6 @@ if __name__ == "__main__":
             else:
                 result = get_color_palette(pred, config["palette"])
 
-
             h, w, c = output.shape
             tmp = output.reshape(h*w, c)
             if big_preds[idx] is None:

@@ -31,7 +31,7 @@ def test(cfg, config, args):
     )
 
     if name.startswith("aspp"):
-        tester = ASPPTester(cfg, device, test_loader, logger, config["palette"], saveres=args.saveres)
+        tester = ASPPTester(cfg, device, test_loader, logger, config["palette"], config["trainid2name"], saveres=args.saveres)
     elif name.startswith("pranet"):
         tester = PranetTester(cfg, device, test_loader, logger)
     elif name.startswith("attn"):

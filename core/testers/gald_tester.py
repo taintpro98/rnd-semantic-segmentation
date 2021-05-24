@@ -6,7 +6,7 @@ import torch
 import torch.nn.functional as F
 
 from core.models.classifiers.gcpacc.gcpa_cc2 import GCPADecoder, GCPAEncoder
-from core.utils.utility import intersectionAndUnionGPU, AverageMeter, get_color_palette
+from core.utils.utility import intersectionAndUnionGPU, AverageMeter, get_color_palette, confusion_matrix, dump_json
 
 class GALDTester:
     def __init__(self, cfg, device, test_loader, logger, palette, saveres=False):
@@ -71,6 +71,10 @@ class GALDTester:
             
             if self.saveres:
                 self.save_distill(output, name)
+            
+            pds = torch.flatten(pred) # vector tensor (B x H x W)
+            gts = torch.flatten(y) # vector tensor (B x H x W)
+            cmt = cmt + confusion_matrix(self.cfg, pds, gts)
                 
             intersection, union, target, res = intersectionAndUnionGPU(pred, y, self.cfg.MODEL.NUM_CLASSES, self.cfg.INPUT.IGNORE_LABEL)
             intersection, union, target, res = intersection.cpu().numpy(), union.cpu().numpy(), target.cpu().numpy(), res.cpu().numpy()
@@ -78,3 +82,9 @@ class GALDTester:
             self.meter.update(intersection, union, target, res)
 
         self.meter.summary(self.logger, self.cfg.MODEL.NUM_CLASSES)
+        mydata = {
+            'cmt': cmt,
+            'classes': list(self.trainid2name.values())
+        }
+        json_path = os.path.join(self.cfg.OUTPUT_DIR, "gald_confusion_matrix.json")
+        dump_json(json_path, mydata)
