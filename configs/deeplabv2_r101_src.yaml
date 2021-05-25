@@ -5,8 +5,8 @@ MODEL:
   NUM_CLASSES: 19
 DATASETS:
   DATASET_DIR: "/home/admin_mcn/taint/dataset"
-  SOURCE_TRAIN: "gta5_train"
-  TEST: "gta5_val"
+  SOURCE_TRAIN: "merge_train"
+  TEST: "cityscapes_val"
   CROSS_VAL: 0
 # INPUT:
   # PIXEL_MEAN: [103.939, 116.779, 123.68]
@@ -21,5 +21,5 @@ SOLVER:
   BATCH_SIZE: 6
   EPOCHS: 10
   CHECKPOINT_PERIOD: 2
-TEST: 
+TEST:
   BATCH_SIZE: 1

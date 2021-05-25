@@ -5,7 +5,7 @@ MODEL:
   NUM_CLASSES: 19
 DATASETS:
   DATASET_DIR: "/home/admin_mcn/taint/dataset"
-  SOURCE_TRAIN: "gta5_train"
+  SOURCE_TRAIN: "merge_train"
   TARGET_TRAIN: "cityscapes_train"
   TEST: "cityscapes_val"
   CROSS_VAL: None

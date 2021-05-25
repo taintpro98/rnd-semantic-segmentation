@@ -14,13 +14,13 @@ def main(name, cfg, local_rank):
     src_train_data = build_dataset(cfg, mode='train', is_source=True)
     collate_fn = build_collate_fn(cfg)
     train_loader = torch.utils.data.DataLoader(
-        src_train_data, 
-        batch_size=cfg.SOLVER.BATCH_SIZE, 
-        shuffle=True, 
-        num_workers=4, 
-        pin_memory=True, 
+        src_train_data,
+        batch_size=cfg.SOLVER.BATCH_SIZE,
+        shuffle=True,
+        num_workers=4,
+        pin_memory=True,
         collate_fn=collate_fn,
-        sampler=None, 
+        sampler=None,
         drop_last=True
     )
 
@@ -59,4 +59,4 @@ if __name__ == "__main__":
     cfg.merge_from_list(args.opts)
     cfg.freeze()
 
-    main("gald", cfg, args.local_rank)
+    main("aspp", cfg, args.local_rank)
