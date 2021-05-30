@@ -76,7 +76,7 @@ class ASPPTester:
         # plot_confusion_matrix(cmt, list(self.trainid2name.values()))
         self.meter.summary(self.logger, num_classes)
         mydata = {
-            'cmt': cmt,
+            'cmt': cmt.tolist(),
             'classes': list(self.trainid2name.values())
         }
         json_path = os.path.join(self.cfg.OUTPUT_DIR, "aspp_confusion_matrix.json")

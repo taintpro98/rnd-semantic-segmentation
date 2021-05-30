@@ -99,7 +99,7 @@ class GaldFada:
                 temperature = 1.8
                 src_output = src_output.div(temperature)
                 # loss_seg = criterion(src_output, src_label)
-                loss_seg = GeneralizedDiceLoss(src_output, src_label)
+                loss_seg = criterion(src_output, src_label)
                 loss_seg.backward()
 
                 # generate soft labels

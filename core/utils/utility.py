@@ -354,7 +354,8 @@ def confusion_matrix(cfg, pd, gt):
     stacked = torch.stack((gt, pd), dim=1) # tensor (B, 2)
     for p in stacked:
         tl, pl = p.tolist()
-        cmt[tl, pl] = cmt[tl, pl] + 1
+        if tl != 255:
+            cmt[tl, pl] = cmt[tl, pl] + 1
     return cmt
 
 def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion matrix', cmap=plt.cm.Blues):
@@ -460,6 +461,17 @@ class LineChartPlotter:
 
     def display(self):
         for chart in self.charts:
-            plt.plot(chart.x, chart.y, label=chart.label)
+            plt.plot(chart["x"], chart["y"], label=chart["label"], marker='', markersize=20, linewidth=0.5)
         plt.legend()
-        plt.savefig(self.filepath)
+        plt.savefig(self.filepath, dpi=100)
+        plt.close()
+
+def moving_average(numbers, window_size=150):
+    i = 0
+    moving_averages = []
+    while i < len(numbers) - window_size + 1:
+        this_window = numbers[i : i + window_size]
+        window_average = sum(this_window) / window_size
+        moving_averages.append(window_average)
+        i += 1
+    return moving_averages

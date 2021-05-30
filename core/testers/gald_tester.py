@@ -83,7 +83,7 @@ class GALDTester:
 
         self.meter.summary(self.logger, self.cfg.MODEL.NUM_CLASSES)
         mydata = {
-            'cmt': cmt,
+            'cmt': cmt.tolist(),
             'classes': list(self.trainid2name.values())
         }
         json_path = os.path.join(self.cfg.OUTPUT_DIR, "gald_confusion_matrix.json")
