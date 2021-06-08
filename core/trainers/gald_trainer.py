@@ -86,7 +86,7 @@ class GALDTrainer(BaseTrainer):
 
             self.iteration+=1
 
-            self.lr_data.append(self.optimizer_fea.param_groups[0]["lr"])
+            self.lr_data.append(self.optimizer_enc.param_groups[0]["lr"])
             self.loss_data.append(loss.item())
 
             if i % 20 == 0 or i == len(self.train_loader):

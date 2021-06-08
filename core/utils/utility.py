@@ -358,7 +358,7 @@ def confusion_matrix(cfg, pd, gt):
             cmt[tl, pl] = cmt[tl, pl] + 1
     return cmt
 
-def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion matrix', cmap=plt.cm.Blues):
+def plot_confusion_matrix(cm, classes, normalize=True, title='Confusion matrix', cmap=plt.cm.Reds):
     if normalize:
         cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
         print("Normalized confusion matrix")
@@ -369,15 +369,16 @@ def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion matrix'
     plt.title(title)
     plt.colorbar()
     tick_marks = np.arange(len(classes))
-    plt.xticks(tick_marks, classes, rotation=45)
+    plt.xticks(tick_marks, classes, rotation=90)
     plt.yticks(tick_marks, classes)
 
     fmt = '.2f' if normalize else 'd'
     thresh = cm.max() / 2.
     for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-        plt.text(j, i, format(cm[i, j], fmt), horizontalalignment="center", color="white" if cm[i, j] > thresh else "black")
+        # plt.text(j, i, format(cm[i, j], fmt), horizontalalignment="center", color="white" if cm[i, j] > thresh else "black")
+        plt.text(j, i, "", horizontalalignment="center", color="white" if cm[i, j] > thresh else "black")
 
-    # plt.tight_layout()
+    plt.tight_layout()
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
     plt.savefig('foo.png')
@@ -475,3 +476,22 @@ def moving_average(numbers, window_size=150):
         moving_averages.append(window_average)
         i += 1
     return moving_averages
+
+def plot_images(images, titles, savepath, rows=1, columns=None):
+    # create figure
+    fig = plt.figure(figsize=(8, 7)) # the size of plot board (width, height)
+      
+    # setting values to rows and column variables 
+    if columns is None:
+        columns = len(images)
+  
+    # Adds a subplot at the 1st position
+    fig.add_subplot(rows, columns, 1)
+    for idx, (img, title) in enumerate(zip(images, titles)):
+        # Adds a subplot at the ith position
+        fig.add_subplot(rows, columns, idx+1)
+        # showing image
+        plt.imshow(img)
+        plt.axis('off')
+        plt.title(title)
+    plt.savefig(savepath)

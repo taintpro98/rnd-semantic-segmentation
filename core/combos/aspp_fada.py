@@ -59,6 +59,10 @@ class AsppFada:
         start_training_time = time.time()
         end = time.time()
 
+        # scheduler_fea = CosineAnnealingWarmupLR(self.aspp.optimizer_fea, T_max=50, warmup_epochs=1)
+        # scheduler_cls = CosineAnnealingWarmupLR(self.aspp.optimizer_cls, T_max=50, warmup_epochs=1)
+        # scheduler_D = CosineAnnealingWarmupLR(self.fada.optimizer_D, T_max=50, warmup_epochs=1)
+
         for epoch in range(self.fada.start_adv_epoch, self.cfg.SOLVER.EPOCHS+1):
             for i, ((src_input, src_label, src_name), (tgt_input, _, _)) in enumerate(zip(self.aspp.train_loader, self.fada.tgt_train_loader)):
                 data_time = time.time() - end
@@ -137,7 +141,7 @@ class AsppFada:
                 eta_seconds = meters.time.global_avg * (max_iter - self.iteration)
                 eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
 
-                self.lr_data.append(self.gald.optimizer_enc.param_groups[0]["lr"])
+                self.lr_data.append(self.aspp.optimizer_fea.param_groups[0]["lr"])
                 self.D_lr_data.append(self.fada.optimizer_D.param_groups[0]['lr'])
                 self.loss_seg_data.append(loss_seg.item())
                 self.loss_adv_tgt_data.append(loss_adv_tgt.item())
@@ -169,6 +173,10 @@ class AsppFada:
             if epoch % self.cfg.SOLVER.CHECKPOINT_PERIOD == 0 and save_to_disk:
                 filename = os.path.join(self.cfg.OUTPUT_DIR, "AsppFada-{}.pth".format(epoch))
                 self._save_checkpoint(epoch, filename)
+
+            # scheduler_fea.step()
+            # scheduler_cls.step()
+            # scheduler_D.step()
 
         total_training_time = time.time() - start_training_time
         total_time_str = str(datetime.timedelta(seconds=total_training_time))
