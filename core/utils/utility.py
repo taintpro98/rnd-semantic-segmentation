@@ -479,7 +479,7 @@ def moving_average(numbers, window_size=150):
 
 def plot_images(images, titles, savepath, rows=1, columns=None):
     # create figure
-    fig = plt.figure(figsize=(8, 7)) # the size of plot board (width, height)
+    fig = plt.figure(figsize=(10, 7)) # the size of plot board (width, height)
       
     # setting values to rows and column variables 
     if columns is None:

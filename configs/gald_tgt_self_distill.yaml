@@ -17,7 +17,7 @@ INPUT:
   SATURATION: 0.5
   HUE: 0.2
 AUG:
-  NAME: "gald"
+  NAME: "aspp"
   COLLATE: None
 SOLVER:
   BASE_LR: 0.0001
