@@ -7,70 +7,8 @@ import torch.nn.functional as F
 
 from base.base_trainer import BaseTrainer
 from core.models.classifiers.gcpacc.gcpa_cc2 import GCPADecoder, GCPAEncoder
-from core.utils.adapt_lr import CosineAnnealingWarmupLR, GradualWarmupScheduler
-
-def flatten(tensor):
-    """Flattens a given tensor such that the channel axis is first.
-    The shapes are transformed as follows:
-       (N, C, H, W) -> (C, N * H * W)
-    """
-    C = tensor.size(1)
-    # new axis order
-    axis_order = (1, 0) + tuple(range(2, tensor.dim()))
-    # Transpose: (N, C, H, W) -> (C, N, H, W)
-    transposed = tensor.permute(axis_order)
-    # Flatten: (C, N, H, W) -> (C, N * H * W)
-    return transposed.reshape(C, -1)
-
-def GeneralizedDiceLoss(output, target, eps=1e-5, weight_type='square', ignore_label=255):
-    """
-        :param output: tensor (N, C, H, W) with not yet softmax score
-        :param target: tensor (N, C, H, W) with one-hot column or (N, H, W) with labels
-    """
-    output = flatten(output) # [N, C, H, W] -> [C, N * H * W]
-    output = F.softmax(output, dim=0)
-    num_classes = output.size(0)
-
-    if target.dim() == 3:
-        # target shape [N, H, W]
-        target = target.view(-1) # [N * H * W]
-        tmp = torch.ones_like(torch.empty(target.size(0)))
-        tmp[target == ignore_label] = 0
-        tmp = torch.stack([tmp] * num_classes, dim=0)
-
-        # tmp = np.ones(target.size(0)).astype(int) # numpy array [N*H*W] with all one
-        # tmp[target.cpu() == ignore_label] = 0
-        # tmp = np.concatenate([[tmp]] * num_classes, axis=0) # numpy array [C, N*H*W]
-        # tmp = torch.from_numpy(tmp).cuda()
-        output = output * tmp.cuda()
-
-        target[target == ignore_label] = num_classes # convert ignore label 255 to max label
-        target = F.one_hot(target, num_classes+1).permute(1, 0)[:-1, ...] # [C, N*H*W]
-        
-    else:
-        target = flatten(target) # [N, C, H, W] -> [C, N * H * W] 
-
-    target_sum = target.sum(-1) # [C, ]
-    if weight_type == 'square':
-        class_weights = 1. / (target_sum * target_sum + eps) # [C, ]
-    elif weight_type == 'identity':
-        class_weights = 1. / (target_sum + eps) # [C, ]
-    elif weight_type == 'sqrt':
-        class_weights = 1. / (torch.sqrt(target_sum) + eps) # [C, ]
-    else:
-        raise ValueError('Check out the weight_type: ', weight_type)
-
-    intersect = (output * target).sum(-1) # [C, ]
-    intersect_sum = (intersect * class_weights).sum() # scalar  
-    denominator = (output * output + target * target).sum(-1) # [C, ]
-    denominator_sum = (denominator * class_weights).sum() + eps #scalar
-
-    # for i in range(output.size(0)):
-    #     lossi = 2 * intersect[i] / (denominator[i] + eps)
-    
-    # logging.info('1:{:.4f} | 2:{:.4f} | 4:{:.4f}'.format(loss1.data, loss2.data, loss3.data))
-
-    return 1 - 2. * intersect_sum / denominator_sum  
+from core.utils.adapt_lr import CosineAnnealingWarmupLR, GradualWarmupScheduler, adjust_learning_rate
+from core.utils.utility import dump_json
 
 class GALDTrainer(BaseTrainer):
     def __init__(self, name, cfg, train_loader, local_rank, logger=None):
@@ -82,8 +20,8 @@ class GALDTrainer(BaseTrainer):
         self.encoder.to(self.device)
         self.decoder.to(self.device)
 
-        self.optimizer_enc = torch.optim.Adam(self.encoder.parameters(), lr=self.cfg.SOLVER.BASE_LR, weight_decay=self.cfg.SOLVER.WEIGHT_DECAY)
-        self.optimizer_dec = torch.optim.Adam(self.decoder.parameters(), lr=self.cfg.SOLVER.BASE_LR*10, weight_decay=self.cfg.SOLVER.WEIGHT_DECAY)
+        self.optimizer_enc = torch.optim.Adam(self.encoder.parameters(), lr=self.cfg.SOLVER.BASE_LR)
+        self.optimizer_dec = torch.optim.Adam(self.decoder.parameters(), lr=self.cfg.SOLVER.BASE_LR*10)
 
     def _save_checkpoint(self, epoch, save_path):
         checkpoint = {
@@ -96,8 +34,30 @@ class GALDTrainer(BaseTrainer):
         }
         torch.save(checkpoint, save_path)
 
+    def _load_checkpoint(self):
+        self.checkpoint = torch.load(self.cfg.resume, map_location=self.device)
+        self.encoder.load_state_dict(self.checkpoint['encoder'])
+        self.decoder.load_state_dict(self.checkpoint['decoder'])
+        if "optimizer_enc" in self.checkpoint:
+            self.logger.info("Loading encoder optimizer from {}".format(self.cfg.resume))
+            self.optimizer_enc.load_state_dict(self.checkpoint['optimizer_enc'])
+        if "optimizer_dec" in self.checkpoint:
+            self.logger.info("Loading decoder optimizer from {}".format(self.cfg.resume))
+            self.optimizer_dec.load_state_dict(self.checkpoint['optimizer_dec'])
+        if "iteration" in self.checkpoint:
+            self.iteration = self.checkpoint['iteration']
+        if "epoch" in self.checkpoint:
+            self.start_epoch = self.checkpoint['epoch'] + 1
+
     def _train_epoch(self, epoch):
+        max_iter = self.cfg.SOLVER.EPOCHS * len(self.train_loader)
         for i, (src_input, src_label, _) in enumerate(self.train_loader):
+            current_lr = adjust_learning_rate(self.cfg.SOLVER.LR_METHOD, self.cfg.SOLVER.BASE_LR, self.iteration, max_iter, power=self.cfg.SOLVER.LR_POWER)
+            for index in range(len(self.optimizer_enc.param_groups)):
+                self.optimizer_enc.param_groups[index]['lr'] = current_lr
+            for index in range(len(self.optimizer_dec.param_groups)):
+                self.optimizer_dec.param_groups[index]['lr'] = current_lr*10
+            
             self.optimizer_enc.zero_grad()
             self.optimizer_dec.zero_grad()
 
@@ -126,6 +86,9 @@ class GALDTrainer(BaseTrainer):
 
             self.iteration+=1
 
+            self.lr_data.append(self.optimizer_enc.param_groups[0]["lr"])
+            self.loss_data.append(loss.item())
+
             if i % 20 == 0 or i == len(self.train_loader):
                 self.logger.info('{} Epoch [{:03d}/{:03d}], Step [{:04d}/{:04d}], loss: [{:0.4f}], encode_learning_rate: [{:0.8f}], decode_learning_rate: [{:0.8f}]'.format(datetime.now(), epoch, self.cfg.SOLVER.EPOCHS, i, len(self.train_loader), loss.item(), self.optimizer_enc.param_groups[0]['lr'], self.optimizer_dec.param_groups[0]['lr']))
 
@@ -146,12 +109,18 @@ class GALDTrainer(BaseTrainer):
         self.encoder.train()
         self.decoder.train()
 
-        cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_enc, 100, eta_min=0, last_epoch=-1)
-        scheduler_enc = GradualWarmupScheduler(self.optimizer_enc, multiplier=8, total_epoch=5, after_scheduler=cosine_scheduler)
-        cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_dec, 100, eta_min=0, last_epoch=-1)
-        scheduler_dec = GradualWarmupScheduler(self.optimizer_dec, multiplier=8, total_epoch=5, after_scheduler=cosine_scheduler)
+        # cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_enc, 100, eta_min=0, last_epoch=-1)
+        # scheduler_enc = GradualWarmupScheduler(self.optimizer_enc, multiplier=8, total_epoch=5, after_scheduler=cosine_scheduler)
+        # cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer_dec, 100, eta_min=0, last_epoch=-1)
+        # scheduler_dec = GradualWarmupScheduler(self.optimizer_dec, multiplier=8, total_epoch=5, after_scheduler=cosine_scheduler)
            
         for epoch in range(self.start_epoch, self.cfg.SOLVER.EPOCHS+1):
             self._train_epoch(epoch)
-            scheduler_enc.step()
-            scheduler_dec.step()
+            # scheduler_enc.step()
+            # scheduler_dec.step()
+        mydata = {
+            "learning rate": self.lr_data,
+            "loss": self.loss_data
+        }
+        json_path = os.path.join(self.cfg.OUTPUT_DIR, "gald_chart_params.json")
+        dump_json(json_path, mydata)

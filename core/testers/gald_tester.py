@@ -3,9 +3,10 @@ import numpy as np
 import os
 
 import torch
+import torch.nn.functional as F
 
 from core.models.classifiers.gcpacc.gcpa_cc2 import GCPADecoder, GCPAEncoder
-from core.utils.utility import intersectionAndUnionGPU, AverageMeter, get_color_palette
+from core.utils.utility import intersectionAndUnionGPU, AverageMeter, get_color_palette, confusion_matrix, dump_json
 
 class GALDTester:
     def __init__(self, cfg, device, test_loader, logger, palette, saveres=False):
@@ -24,10 +25,8 @@ class GALDTester:
     def _load_checkpoint(self):
         self.logger.info("Loading checkpoint from {}".format(self.cfg.resume))
         checkpoint = torch.load(self.cfg.resume, map_location=self.device)
-        feature_extractor_weights = strip_prefix_if_present(checkpoint['feature_extractor'], 'module.')
-        self.feature_extractor.load_state_dict(feature_extractor_weights)
-        classifier_weights = strip_prefix_if_present(checkpoint['classifier'], 'module.')
-        self.classifier.load_state_dict(classifier_weights)
+        self.encoder.load_state_dict(checkpoint['encoder'])
+        self.decoder.load_state_dict(checkpoint['decoder'])
 
     def save_distill(self, output, name):
         """
@@ -52,27 +51,30 @@ class GALDTester:
         for batch in tqdm(self.test_loader):
             x, y, name = batch
             x = x.cuda(non_blocking=True)
-            y = y.cuda(non_blocking=True).long()
+            y = y.cuda(non_blocking=True).long() # tensor B X H x W
+
+            _, h, w = y.size()
+            # y = y.squeeze(1)
 
             hardnetout = self.encoder(x)
             res5, res4, res3, res2 = self.decoder(x, hardnetout)
 
-
-            name = os.path.splitext(filename[0])[0]
-            ext = os.path.splitext(filename[0])[1]
-            gt = gt[0][0]
-            gt = np.asarray(gt, np.float32)
+            # gt = gt[0][0]
+            # gt = np.asarray(gt, np.float32)
 
             res = res2
             res = F.upsample(
-                res, size=gt.shape, mode="bilinear", align_corners=False
-            )
-            res = res.sigmoid().data.cpu().numpy().squeeze()
-            res = (res - res.min()) / (res.max() - res.min() + 1e-8)
-
+                res, size=(h, w), mode="bilinear", align_corners=False
+            ) # tensor [(B=1) x C x H x W]
+            output = F.softmax(res, dim=1)
             pred = output.max(1)[1] # tensor B, H, W
+            
             if self.saveres:
                 self.save_distill(output, name)
+            
+            pds = torch.flatten(pred) # vector tensor (B x H x W)
+            gts = torch.flatten(y) # vector tensor (B x H x W)
+            cmt = cmt + confusion_matrix(self.cfg, pds, gts)
                 
             intersection, union, target, res = intersectionAndUnionGPU(pred, y, self.cfg.MODEL.NUM_CLASSES, self.cfg.INPUT.IGNORE_LABEL)
             intersection, union, target, res = intersection.cpu().numpy(), union.cpu().numpy(), target.cpu().numpy(), res.cpu().numpy()
@@ -80,3 +82,9 @@ class GALDTester:
             self.meter.update(intersection, union, target, res)
 
         self.meter.summary(self.logger, self.cfg.MODEL.NUM_CLASSES)
+        mydata = {
+            'cmt': cmt.tolist(),
+            'classes': list(self.trainid2name.values())
+        }
+        json_path = os.path.join(self.cfg.OUTPUT_DIR, "gald_confusion_matrix.json")
+        dump_json(json_path, mydata)

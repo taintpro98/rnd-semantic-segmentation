@@ -35,8 +35,8 @@ class CarlaFoldDataSet(Dataset):
                 if str(cross_val) in os.path.basename(kfold_path[:-1]):
                     self.image_paths += [img_path for img_path in glob(os.path.join(kfold_path, 'images') + '/*.png')]
 
-        self.id_to_trainid = {0: 0, 11: 1, 13: 2, 24: 4, 17: 5,
-                              7: 6, 7: 7, 8: 8, 21: 9, 26: 10, 12: 11, 20: 12}
+        self.id_to_trainid = {1:2, 2:4, 4:11, 5:5, 6:0, 7:0, 8:1,
+                            9:8, 10:13, 11:3, 12:7}
 
         self.trainid2name = {
             0:"none",

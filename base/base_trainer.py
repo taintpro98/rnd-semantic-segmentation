@@ -8,11 +8,13 @@ class BaseTrainer:
     def __init__(self, name, cfg, train_loader, local_rank, logger=None):
         self.cfg = cfg
 
-        self.logger = setup_logger(name, cfg.OUTPUT_DIR, local_rank) if (logger is None) else logger
+        self.logger = setup_logger(name + "_train", cfg.OUTPUT_DIR, local_rank) if (logger is None) else logger
         self.train_loader = train_loader
         self.local_rank = local_rank
         self.start_epoch = 1
         self.distributed = False
+        self.lr_data = list()
+        self.loss_data = list()
         # self.num_gpus = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
 
         if torch.cuda.is_available():

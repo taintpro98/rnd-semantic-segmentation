@@ -61,12 +61,11 @@ class MergeDataSet(Dataset):
             "gta5": {7: 0, 8: 1, 11: 2, 12: 3, 13: 4, 17: 5,
                     19: 6, 20: 7, 21: 8, 22: 9, 23: 10, 24: 11, 25: 12,
                     26: 13, 27: 14, 28: 15, 31: 16, 32: 17, 33: 18},
-            "carla":{0: 0, 11: 1, 13: 2, 24: 4, 17: 5,
-                    7: 6, 7: 7, 8: 8, 21: 9, 26: 10, 12: 11, 20: 12}
+            "carla":{1:2, 2:4, 4:11, 5:5, 6:0, 7:0, 8:1,
+                    9:8, 10:13, 11:3, 12:7}
         }
 
         self.trainid2name = {
-            "gta5": {
                 0:"road",
                 1:"sidewalk",
                 2:"building",
@@ -86,22 +85,6 @@ class MergeDataSet(Dataset):
                 16:"train",
                 17:"motocycle",
                 18:"bicycle"
-            },
-            "carla": {
-                0:"none",
-                1:"building",
-                2:"fence",
-                3:"other",
-                4:"pedestrian", #person
-                5:"pole",
-                6:"roadline", #road
-                7:"road",
-                8:"sidewalk",
-                9:"vegetation",
-                10:"vehicle", #car
-                11:"wall",
-                12:"trafficsign"
-            }
         }
 
     def __len__(self):
