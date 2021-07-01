@@ -3,6 +3,7 @@ from .cityscapes import cityscapesDataSet, cityscapesSelfDistillDataSet
 # from .cityscapes_self_distill import cityscapesSelfDistillDataSet
 # from .synthia import synthiaDataSet
 from .gta5 import GTA5FoldDataSet
+from .gta5_fda import GTA5FDAFoldDataSet
 from .carla import CarlaFoldDataSet
 from .merge import MergeDataSet
 from .kvasir import KvasirDataSet, KvasirFoldDataset
@@ -11,6 +12,10 @@ from .bli import BLIDataset
 class DatasetCatalog(object):
     DATASETS = {
         "gta5_train": {
+            "data_dir": "gta5",
+            "data_list": "gta5_train_list.txt"
+        },
+        "gta5_fda_train": {
             "data_dir": "gta5",
             "data_list": "gta5_train_list.txt"
         },
@@ -29,7 +34,7 @@ class DatasetCatalog(object):
         "cityscapes_self_distill_train": {
             "data_dir": "cityscapes",
             "data_list": "cityscapes_train_list.txt",
-            "label_dir": "cityscapes/soft_labels/inference/cityscapes_train"
+            "label_dir": "cityscapes/soft_labels_3006/inference/cityscapes_train"
         },
         "cityscapes_val": {
             "data_dir": "cityscapes",
@@ -79,6 +84,9 @@ class DatasetCatalog(object):
                 root=os.path.join(data_dir, attrs["data_dir"]),
                 data_list=os.path.join(data_dir, attrs["data_list"]),
             )
+            if "fda" in name:
+                return GTA5FDAFoldDataSet(cfg, args["root"], mode=mode, cross_val=cross_val, transform=transform)
+
             return GTA5FoldDataSet(cfg, args["root"], mode=mode, cross_val=cross_val, transform=transform)
         elif "synthia" in name:
             data_dir = cfg.DATASETS.DATASET_DIR
