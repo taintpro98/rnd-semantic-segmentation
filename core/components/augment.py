@@ -3,7 +3,7 @@ import torch.nn as nn
 import albumentations as al
 import cv2
 
-from torchvision.io import read_image
+# from torchvision.io import read_image
 from albumentations.core.composition import Compose, OneOf
 from albumentations.augmentations import transforms
 

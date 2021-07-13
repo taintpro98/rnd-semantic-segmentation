@@ -2,16 +2,16 @@
     "root": "runs",
     "name": "aspp",
     "tensorboard": false,
-    "dir": "/mnt/data/taint/visualize/ignored-cityscapes",
+    "dir": "/Users/macbook/Documents/AI/topics/DomainAdaptation/visualize",
     "labeled": "id",
     "sample":{
         "img_path": "renders/demo_image.txt",
         "lab_path": "renders/demo_groundtruth.txt"
     },
     "weights":{
-        "src_model": "/mnt/data/taint/weights/gta5/gta5-3-2-2021/model_iter062500.pth",
-        "adv_model": "/mnt/data/taint/weights/gta2cityscape/26-3-2021/AsppFada-40.pth",
-        "author": "/mnt/data/taint/weights/gta2cityscape/author_adv_weight.pth"
+        "src_model": "/Users/macbook/Documents/AI/topics/DomainAdaptation/weights/Aspp-4.pth",
+        "adv_model": "/Users/macbook/Documents/AI/topics/DomainAdaptation/weights/AsppFada-45.pth",
+        "distill_model": "/Users/macbook/Documents/AI/topics/DomainAdaptation/weights/Aspp-84.pth"
     },
     "palette": [
         128, 64, 128,

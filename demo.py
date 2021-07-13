@@ -22,7 +22,7 @@ from PIL import Image
 from skimage.io import imread
 
 # from tensorboardX import SummaryWriter
-from torch.utils.tensorboard import SummaryWriter
+# from torch.utils.tensorboard import SummaryWriter
 
 from core.configs import cfg
 from core.datasets.build import build_dataset
@@ -32,7 +32,6 @@ from core.models.classifiers.pranet.PraNet_Res2Net import PraNet
 from core.models.classifiers.attn.eff import Encoder, Decoder, AttnEfficientNetUnet
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
 # COLORS = ('white','red', 'blue', 'yellow', 'magenta', 
 #             'green', 'indigo', 'darkorange', 'cyan', 'pink', 
 #             'yellowgreen', 'black', 'darkgreen', 'brown', 'gray',
@@ -142,7 +141,7 @@ def build_model(cfg, name, resume):
 
         feature_extractor.eval()
         classifier.eval()
-        checkpoint = torch.load(resume, map_location=torch.device('cpu'))
+        checkpoint = torch.load(resume, map_location=device)
         feature_extractor_weights = strip_prefix_if_present(checkpoint['feature_extractor'], 'module.')
         feature_extractor.load_state_dict(feature_extractor_weights)
         classifier_weights = strip_prefix_if_present(checkpoint['classifier'], 'module.')
