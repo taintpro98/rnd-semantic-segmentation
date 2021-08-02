@@ -1,5 +1,5 @@
 MODEL:
-  NAME: "deeplab_resnet101"
+  NAME: "gald_hardnet"
   WEIGHTS: "https://download.pytorch.org/models/resnet101-5d3b4d8f.pth"
   FREEZE_BN: True
   NUM_CLASSES: 19
@@ -22,10 +22,10 @@ AUG:
   NAME: "aspp"
   COLLATE: None
 SOLVER:
-  BASE_LR: 2.5e-4
+  BASE_LR: 0.5e-4
   BASE_LR_D: 0.0001
   CHECKPOINT_PERIOD: 1
   EPOCHS: 10
-  BATCH_SIZE: 8
+  BATCH_SIZE: 5
 TEST:
   BATCH_SIZE: 1

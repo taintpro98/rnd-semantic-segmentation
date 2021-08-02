@@ -2,17 +2,21 @@ import argparse
 import os
 
 import torch
+from torch.utils.data import ConcatDataset
 import torch.nn.functional as F
 
 from core.configs import cfg
 from core.datasets.build import build_dataset, build_collate_fn
 from core.combos.aspp_fada import AsppFada
 from core.combos.attn_fada import AttnFada
+from core.combos.gald_fada import GaldFada
 from core.datasets.func import collate_fn
 
 def main(name, cfg, local_rank, distributed):
     src_train_data = build_dataset(cfg, mode='train', is_source=True)
     tgt_train_data = build_dataset(cfg, mode='train', is_source=False)
+    duplicate_tgt_data = ConcatDataset([tgt_train_data] * 9)
+
     src_collate_fn = build_collate_fn(cfg)
 
     if distributed:
@@ -24,7 +28,7 @@ def main(name, cfg, local_rank, distributed):
     
     src_train_loader = torch.utils.data.DataLoader(
         src_train_data, 
-        batch_size=cfg.SOLVER.BATCH_SIZE, 
+        batch_size=cfg.SOLVER.BATCH_SIZE//2, 
         shuffle=(src_train_sampler is None), 
         num_workers=4, 
         pin_memory=True, 
@@ -33,12 +37,13 @@ def main(name, cfg, local_rank, distributed):
         drop_last=True
     )
     tgt_train_loader = torch.utils.data.DataLoader(
-        tgt_train_data, 
-        batch_size=cfg.SOLVER.BATCH_SIZE, 
+        # tgt_train_data, 
+        duplicate_tgt_data,
+        batch_size=cfg.SOLVER.BATCH_SIZE//2, 
         shuffle=(tgt_train_sampler is None), 
         num_workers=4, 
         pin_memory=True, 
-        collate_fn=collate_fn,
+        # collate_fn=collate_fn, running aspp on cityscapes
         sampler=tgt_train_sampler, 
         drop_last=True
     )
@@ -48,6 +53,8 @@ def main(name, cfg, local_rank, distributed):
         trainer = PraNetFada()
     elif name == "attn_fada":
         trainer = AttnFada(name, cfg, src_train_loader, tgt_train_loader, local_rank)
+    elif name == "gald_fada":
+        trainer = GaldFada(name, cfg, src_train_loader, tgt_train_loader, local_rank)
     trainer.train()
 
 if __name__ == "__main__":
@@ -96,4 +103,4 @@ if __name__ == "__main__":
     #     logger.info(config_str)
     # logger.info("Running with config:\n{}".format(cfg))
 
-    main("attn_fada", cfg, args.local_rank, args.distributed)
+    main("gald_fada", cfg, args.local_rank, args.distributed)

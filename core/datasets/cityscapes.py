@@ -7,15 +7,19 @@ import matplotlib.pyplot as plt
 import collections
 import torch
 import torchvision
-from torch.utils import data
+from torch.utils.data import Dataset
 from PIL import Image
 
-class cityscapesDataSet(data.Dataset):
+class cityscapesDataSet(Dataset):
     def __init__(self, data_root, num_classes=19, mode="train", transform=None, ignore_label=255, debug=False):
         self.mode = mode
         self.NUM_CLASS = num_classes
         self.data_root = data_root
         self.image_paths = list()
+        self.transform = transform
+        self.ignore_label = ignore_label
+        self.debug = debug
+
         img_dirs = glob(os.path.join(self.data_root, "leftImg8bit/%s" % self.mode) + "/*/")
         
         for img_dir in img_dirs:
@@ -114,11 +118,6 @@ class cityscapesDataSet(data.Dataset):
                 14: "motocycle",
                 15: "bicycle",
             }
-        self.transform = transform
-
-        self.ignore_label = ignore_label
-
-        self.debug = debug
 
     def __len__(self):
         return len(self.image_paths)
@@ -145,6 +144,37 @@ class cityscapesDataSet(data.Dataset):
             label_copy[label == k] = v
         # for k in self.trainid2name.keys():
         #     label_copy[label == k] = k
+        label = Image.fromarray(label_copy)
+        
+        if self.transform is not None:
+            image, label = self.transform(image, label)
+        return image, label, name
+
+class cityscapesSelfDistillDataSet(cityscapesDataSet):
+    def __init__(self, data_root, label_dir, num_classes=19, mode="train", transform=None, ignore_label=255, debug=False):
+        super(cityscapesSelfDistillDataSet, self).__init__(data_root, num_classes, mode, transform, ignore_label, debug)
+        self.label_dir = label_dir
+
+    def __getitem__(self, index):
+        if self.debug:
+            index = 0
+        img_name = os.path.basename(self.image_paths[index])
+        img_dir = os.path.basename(os.path.dirname(self.image_paths[index]))
+        
+        datafile = {
+            'img': self.image_paths[index],
+            'label': os.path.join(self.label_dir, img_name),
+            'name': img_name[:-4]
+        }
+
+        image = Image.open(datafile["img"]).convert('RGB')
+        label = np.array(Image.open(datafile["label"]),dtype=np.float32)
+        name = datafile["name"]
+
+        # re-assign labels to match the format of Cityscapes
+        label_copy = self.ignore_label * np.ones(label.shape, dtype=np.float32)
+        for k in self.trainid2name.keys():	
+            label_copy[label == k] = k
         label = Image.fromarray(label_copy)
         
         if self.transform is not None:

@@ -1,31 +1,28 @@
 MODEL:
   NAME: "deeplab_resnet101"
   WEIGHTS: "https://download.pytorch.org/models/resnet101-5d3b4d8f.pth"
-  FREEZE_BN: True
+  FREEZE_BN: False
   NUM_CLASSES: 19
 DATASETS:
   DATASET_DIR: "/home/admin_mcn/taint/dataset"
-  SOURCE_TRAIN: "gta5_train"
-  TARGET_TRAIN: "cityscapes_train"
+  SOURCE_TRAIN: "cityscapes_self_distill_train"
   TEST: "cityscapes_val"
-  CROSS_VAL: None
 INPUT:
-  INPUT_SIZE_TEST: [1024, 512]
+  SOURCE_INPUT_SIZE_TRAIN: [1024, 512]
+  INPUT_SIZE_TEST: [2048, 1024]
+  INPUT_SCALES_TRAIN: [0.5, 1.5]
+  HORIZONTAL_FLIP_PROB_TRAIN: 0.5
   BRIGHTNESS: 0.5
   CONTRAST: 0.5
   SATURATION: 0.5
   HUE: 0.2
-#   PIXEL_MEAN: [103.939, 116.779, 123.68]
-#   PIXEL_STD: [1., 1., 1.]
-#   TO_BGR255: True
 AUG:
   NAME: "aspp"
   COLLATE: None
 SOLVER:
-  BASE_LR: 2.5e-4
-  BASE_LR_D: 0.0001
-  CHECKPOINT_PERIOD: 1
-  EPOCHS: 10
-  BATCH_SIZE: 8
-TEST:
+  BASE_LR: 0.0001
+  EPOCHS: 84
+  BATCH_SIZE: 5
+  CHECKPOINT_PERIOD: 4
+TEST: 
   BATCH_SIZE: 1

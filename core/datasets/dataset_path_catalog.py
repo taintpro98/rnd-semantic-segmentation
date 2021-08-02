@@ -1,14 +1,18 @@
 import os
-from .cityscapes import cityscapesDataSet
+from .cityscapes import cityscapesDataSet, cityscapesSelfDistillDataSet
 # from .cityscapes_self_distill import cityscapesSelfDistillDataSet
 # from .synthia import synthiaDataSet
-from .gta5 import GTA5DataSet
+from .gta5 import GTA5FoldDataSet
 from .kvasir import KvasirDataSet, KvasirFoldDataset
 from .bli import BLIDataset
 
 class DatasetCatalog(object):
     DATASETS = {
         "gta5_train": {
+            "data_dir": "gta5",
+            "data_list": "gta5_train_list.txt"
+        },
+        "gta5_val": {
             "data_dir": "gta5",
             "data_list": "gta5_train_list.txt"
         },
@@ -64,7 +68,7 @@ class DatasetCatalog(object):
                 root=os.path.join(data_dir, attrs["data_dir"]),
                 data_list=os.path.join(data_dir, attrs["data_list"]),
             )
-            return GTA5DataSet(args["root"], num_classes=num_classes, mode=mode, transform=transform)
+            return GTA5FoldDataSet(cfg, args["root"], mode=mode, cross_val=cross_val, transform=transform)
         elif "synthia" in name:
             data_dir = cfg.DATASETS.DATASET_DIR
             attrs = DatasetCatalog.DATASETS[name]
@@ -82,7 +86,7 @@ class DatasetCatalog(object):
             )
             if 'distill' in name:
                 args['label_dir'] = os.path.join(data_dir, attrs["label_dir"])
-                return cityscapesSelfDistillDataSet(args["root"], args["data_list"], args['label_dir'], max_iters=max_iters, num_classes=num_classes, split=mode, transform=transform)
+                return cityscapesSelfDistillDataSet(args["root"], args['label_dir'], num_classes=num_classes, mode=mode, transform=transform)
             return cityscapesDataSet(args["root"], num_classes=num_classes, mode=mode, transform=transform)
         elif "kvasir" in name:
             data_dir = cfg.DATASETS.DATASET_DIR

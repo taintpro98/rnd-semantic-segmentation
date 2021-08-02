@@ -1,10 +1,12 @@
+import json
 import os
-import torch
 import datetime
 import time 
 import logging
 
-from core.utils.utility import MetricLogger, strip_prefix_if_present
+import torch
+
+from core.utils.utility import MetricLogger, strip_prefix_if_present, dump_json
 from core.models.build import build_model, build_feature_extractor, build_classifier
 from core.utils.adapt_lr import adjust_learning_rate, CosineAnnealingWarmupLR
 from base.base_trainer import BaseTrainer
@@ -66,8 +68,8 @@ class ASPPTrainer(BaseTrainer):
         start_training_time = time.time()
         end = time.time()
 
-        scheduler_enc = CosineAnnealingWarmupLR(self.optimizer_enc, T_max=50, warmup_epochs=5)
-        scheduler_dec = CosineAnnealingWarmupLR(self.optimizer_dec, T_max=50, warmup_epochs=5)
+        # scheduler_enc = CosineAnnealingWarmupLR(self.optimizer_enc, T_max=50, warmup_epochs=5)
+        # scheduler_dec = CosineAnnealingWarmupLR(self.optimizer_dec, T_max=50, warmup_epochs=5)
 
         for epoch in range(self.start_epoch, self.cfg.SOLVER.EPOCHS+1):
             for i, (src_input, src_label, _) in enumerate(self.train_loader):
@@ -84,9 +86,9 @@ class ASPPTrainer(BaseTrainer):
                 src_label = src_label.cuda(non_blocking=True).long()
         
                 size = src_label.shape[-2:]
-                pred = self.classifier(self.feature_extractor(src_input), size)
+                output = self.classifier(self.feature_extractor(src_input), size) # float tensor B x C x H x W
         
-                loss = criterion(pred, src_label)
+                loss = criterion(output, src_label)
                 loss.backward()
 
                 self.optimizer_fea.step()
@@ -99,6 +101,10 @@ class ASPPTrainer(BaseTrainer):
                 meters.update(time=batch_time, data=data_time)
                 eta_seconds = meters.time.global_avg * (max_iter - self.iteration)
                 eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
+
+                self.lr_data.append(self.optimizer_fea.param_groups[0]["lr"])
+                self.loss_data.append(loss.item())
+
                 if self.iteration % 20 == 0 or self.iteration == max_iter:
                     self.logger.info(
                         meters.delimiter.join(
@@ -131,3 +137,9 @@ class ASPPTrainer(BaseTrainer):
                 total_time_str, total_training_time / (self.cfg.SOLVER.EPOCHS)
             )
         )
+        mydata = {
+            "learning rate": self.lr_data,
+            "loss": self.loss_data
+        }
+        json_path = os.path.join(output_dir, "aspp_chart_params.json")
+        dump_json(json_path, mydata)

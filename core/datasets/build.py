@@ -7,6 +7,8 @@ def build_collate_fn(cfg):
         return attn_collate_fn
     elif cfg.AUG.COLLATE == "pranet":
         return pranet_collate_fn
+    elif cfg.AUG.COLLATE == None:
+        return None
     else:
         return None
 

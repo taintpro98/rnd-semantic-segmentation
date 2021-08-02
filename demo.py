@@ -22,17 +22,16 @@ from PIL import Image
 from skimage.io import imread
 
 # from tensorboardX import SummaryWriter
-from torch.utils.tensorboard import SummaryWriter
+# from torch.utils.tensorboard import SummaryWriter
 
 from core.configs import cfg
 from core.datasets.build import build_dataset
 from core.models.build import build_feature_extractor, build_classifier
-from core.utils.utility import mkdir, get_color_palette, inference, strip_prefix_if_present, load_json, load_text
+from core.utils.utility import mkdir, get_color_palette, inference, multi_scale_inference, strip_prefix_if_present, load_json, load_text
 from core.models.classifiers.pranet.PraNet_Res2Net import PraNet
 from core.models.classifiers.attn.eff import Encoder, Decoder, AttnEfficientNetUnet
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
 # COLORS = ('white','red', 'blue', 'yellow', 'magenta', 
 #             'green', 'indigo', 'darkorange', 'cyan', 'pink', 
 #             'yellowgreen', 'black', 'darkgreen', 'brown', 'gray',
@@ -142,7 +141,7 @@ def build_model(cfg, name, resume):
 
         feature_extractor.eval()
         classifier.eval()
-        checkpoint = torch.load(resume, map_location=torch.device('cpu'))
+        checkpoint = torch.load(resume, map_location=device)
         feature_extractor_weights = strip_prefix_if_present(checkpoint['feature_extractor'], 'module.')
         feature_extractor.load_state_dict(feature_extractor_weights)
         classifier_weights = strip_prefix_if_present(checkpoint['classifier'], 'module.')
@@ -175,6 +174,7 @@ def get_output(cfg, name, resume, image, label):
     if name.startswith("aspp"):
         feature_extractor, classifier = build_model(cfg, name, resume)
         output = inference(feature_extractor, classifier, image, label, flip=False) # tensor (B=1) x C x H x W    
+        # output = multi_scale_inference(feature_extractor, classifier, image, label, flip=False) # tensor (B=1) x C x H x W           
         # pred = output.max(1)[1]
         output = output.cpu().numpy()
         output = output.transpose(0,2,3,1) 
@@ -258,7 +258,18 @@ if __name__ == "__main__":
         lab = Image.open(lab_path) if config["labeled"] else Image.fromarray(np.zeros((height, width)))
 
         res.append(img)
-        res.append(lab.convert('RGB'))
+        if config["labeled"] == "id":
+            gt = np.array(lab, dtype=np.float32)
+            label_copy = cfg.MODEL.NUM_CLASSES * np.ones(gt.shape[:2], dtype=np.float32)
+            for k, v in config["id_to_trainid"].items():
+                label_copy[gt == int(k)] = v
+            # gt = Image.fromarray(label_copy)
+            gt = label_copy
+            palette = config["palette"] + [0, 0, 0]
+            result = get_color_palette(gt, palette)
+            res.append(result)
+        else:
+            res.append(lab.convert('RGB'))
 
         if config["tensorboard"]:
             h, w = np.array(lab).shape[:2]
@@ -271,7 +282,11 @@ if __name__ == "__main__":
         for idx, (k, resume) in enumerate(config["weights"].items()):
             output = get_output(cfg, config["name"], resume, image, label)
             pred = get_pred(output)
-            result = get_color_palette(pred, config["palette"])
+            if config["labeled"] == "id":
+                pred[gt == cfg.MODEL.NUM_CLASSES] = cfg.MODEL.NUM_CLASSES
+                result = get_color_palette(pred, config["palette"] + [0, 0, 0])
+            else:
+                result = get_color_palette(pred, config["palette"])
 
             h, w, c = output.shape
             tmp = output.reshape(h*w, c)

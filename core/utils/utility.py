@@ -3,6 +3,7 @@ import numpy as np
 from PIL import Image
 import logging
 import os 
+import itertools
 
 from collections import defaultdict
 from collections import deque
@@ -11,6 +12,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import transforms
+import matplotlib.pyplot as plt
 
 def mkdir(path):
     try:
@@ -188,9 +190,27 @@ def inference(feature_extractor, classifier, image, label, flip=True):
         output = output[0]
     return output.unsqueeze(dim=0)
 
+def multi_scale_inference(feature_extractor, classifier, image, label, flip=True, scales=[0.7,1.0,1.3]):
+    output = None
+    size = image.shape[-2:]
+    for s in scales:
+        x = F.interpolate(image, size=(int(size[0]*s), int(size[1]*s)), mode='bilinear', align_corners=True)
+        pred = inference(feature_extractor, classifier, x, label, flip=False)
+        if output is None:
+            output = pred
+        else:
+            output = output + pred
+        if flip:
+            x_flip = torch.flip(x, [3])
+            pred = inference(feature_extractor, classifier, x_flip, label, flip=False)
+            output = output + pred.flip(3)
+    if flip:
+        return output/len(scales)/2
+    return output/len(scales)
+
 def get_color_palette(pred, palette):
     """
-        :pred: H * W numpy array with 0 and 1
+        :pred: H * W numpy array with labelId
     """
     label = Image.fromarray(pred.astype('uint8')).convert('P')
     label.putpalette(palette)
@@ -200,6 +220,10 @@ def load_json(json_path):
     with open(json_path) as ref:
         data = json.load(ref)
     return data
+
+def dump_json(json_path, data):
+    with open(json_path, 'w') as fp:
+        json.dump(data, fp)
 
 def load_text(path):
     with open(path, "r") as ref:
@@ -286,6 +310,12 @@ def probs_to_onehot(probs, thres=0.5):
     else:
         return (probs > thres).int()
 
+# def labels_to_onehot(label):
+#     """
+#     Convert [N, H, W] tensor label to [N, C, H, W] tensor one-hot
+#     """
+#     F.one_hot(label, num_classes).permute(0, 3, 1, 2)
+
 # class AverageMeter(object):
 #     """Computes and stores the average and current value"""
 #     def __init__(self):
@@ -302,3 +332,166 @@ def probs_to_onehot(probs, thres=0.5):
 #         self.sum += val
 #         self.count += 1
 #         self.avg = self.sum / self.count
+
+def preds2ignorepreds(config, gt, pd, ignore_label=255):
+    """
+    add ignore labels to groundtruth and prediction to 
+    """
+    label_copy = ignore_label * np.ones(gt.shape, dtype=np.float32)
+    for k, v in config["id_to_trainid"].items():
+        label_copy[gt == k] = v
+    gt = Image.fromarray(label_copy)
+    pd[gt == ignore_index] = ignore_index
+    return gt, pd
+
+def confusion_matrix(cfg, pd, gt):
+    """
+        :pd: tensor (numOfSample, )
+        :gt: tensor (numOfSample, )
+    """
+    num_classes = cfg.MODEL.NUM_CLASSES
+    cmt = torch.zeros(num_classes, num_classes, dtype=torch.int64)
+    stacked = torch.stack((gt, pd), dim=1) # tensor (B, 2)
+    for p in stacked:
+        tl, pl = p.tolist()
+        if tl != 255:
+            cmt[tl, pl] = cmt[tl, pl] + 1
+    return cmt
+
+def plot_confusion_matrix(cm, classes, normalize=True, title='Confusion matrix', cmap=plt.cm.Reds):
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        print("Normalized confusion matrix")
+    else:
+        print('Confusion matrix, without normalization')
+
+    plt.imshow(cm, interpolation='nearest', cmap=cmap)
+    plt.title(title)
+    plt.colorbar()
+    tick_marks = np.arange(len(classes))
+    plt.xticks(tick_marks, classes, rotation=90)
+    plt.yticks(tick_marks, classes)
+
+    fmt = '.2f' if normalize else 'd'
+    thresh = cm.max() / 2.
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        # plt.text(j, i, format(cm[i, j], fmt), horizontalalignment="center", color="white" if cm[i, j] > thresh else "black")
+        plt.text(j, i, "", horizontalalignment="center", color="white" if cm[i, j] > thresh else "black")
+
+    plt.tight_layout()
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+    plt.savefig('foo.png')
+
+def flatten(tensor):
+    """Flattens a given tensor such that the channel axis is first.
+    The shapes are transformed as follows:
+       (N, C, H, W) -> (C, N * H * W)
+    """
+    C = tensor.size(1)
+    # new axis order
+    axis_order = (1, 0) + tuple(range(2, tensor.dim()))
+    # Transpose: (N, C, H, W) -> (C, N, H, W)
+    transposed = tensor.permute(axis_order)
+    # Flatten: (C, N, H, W) -> (C, N * H * W)
+    return transposed.reshape(C, -1)
+
+def GeneralizedDiceLoss(output, target, eps=1e-5, weight_type='square', ignore_label=255):
+    """
+        :param output: tensor (N, C, H, W) with not yet softmax score
+        :param target: tensor (N, C, H, W) with one-hot column or (N, H, W) with labels
+    """
+    output = flatten(output) # [N, C, H, W] -> [C, N * H * W]
+    output = F.softmax(output, dim=0)
+    num_classes = output.size(0)
+
+    if target.dim() == 3:
+        # target shape [N, H, W]
+        target = target.view(-1) # [N * H * W]
+        tmp = torch.ones_like(torch.empty(target.size(0)))
+        tmp[target == ignore_label] = 0
+        tmp = torch.stack([tmp] * num_classes, dim=0)
+
+        # tmp = np.ones(target.size(0)).astype(int) # numpy array [N*H*W] with all one
+        # tmp[target.cpu() == ignore_label] = 0
+        # tmp = np.concatenate([[tmp]] * num_classes, axis=0) # numpy array [C, N*H*W]
+        # tmp = torch.from_numpy(tmp).cuda()
+        output = output * tmp.cuda()
+
+        target[target == ignore_label] = num_classes # convert ignore label 255 to max label
+        target = F.one_hot(target, num_classes+1).permute(1, 0)[:-1, ...] # [C, N*H*W]
+        
+    else:
+        target = flatten(target) # [N, C, H, W] -> [C, N * H * W] 
+
+    target_sum = target.sum(-1) # [C, ]
+    if weight_type == 'square':
+        class_weights = 1. / (target_sum * target_sum + eps) # [C, ]
+    elif weight_type == 'identity':
+        class_weights = 1. / (target_sum + eps) # [C, ]
+    elif weight_type == 'sqrt':
+        class_weights = 1. / (torch.sqrt(target_sum) + eps) # [C, ]
+    else:
+        raise ValueError('Check out the weight_type: ', weight_type)
+
+    intersect = (output * target).sum(-1) # [C, ]
+    intersect_sum = (intersect * class_weights).sum() # scalar  
+    denominator = (output * output + target * target).sum(-1) # [C, ]
+    denominator_sum = (denominator * class_weights).sum() + eps #scalar
+
+    # for i in range(output.size(0)):
+    #     lossi = 2 * intersect[i] / (denominator[i] + eps)
+    
+    # logging.info('1:{:.4f} | 2:{:.4f} | 4:{:.4f}'.format(loss1.data, loss2.data, loss3.data))
+
+    return 1 - 2. * intersect_sum / denominator_sum 
+
+class LineChartPlotter:
+    def __init__(self, title, xlabel, ylabel, filepath):
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        plt.title(title)
+        self.filepath = filepath
+        self.charts = list()
+        
+    def add_chart(self, x):
+        """
+            :x: a dict with keys x-axis, y-axis, label
+        """
+        self.charts.append(x)
+
+    def display(self):
+        for chart in self.charts:
+            plt.plot(chart["x"], chart["y"], label=chart["label"], marker='', markersize=20, linewidth=0.5)
+        plt.legend()
+        plt.savefig(self.filepath, dpi=100)
+        plt.close()
+
+def moving_average(numbers, window_size=150):
+    i = 0
+    moving_averages = []
+    while i < len(numbers) - window_size + 1:
+        this_window = numbers[i : i + window_size]
+        window_average = sum(this_window) / window_size
+        moving_averages.append(window_average)
+        i += 1
+    return moving_averages
+
+def plot_images(images, titles, savepath, rows=1, columns=None):
+    # create figure
+    fig = plt.figure(figsize=(10, 7)) # the size of plot board (width, height)
+      
+    # setting values to rows and column variables 
+    if columns is None:
+        columns = len(images)
+  
+    # Adds a subplot at the 1st position
+    fig.add_subplot(rows, columns, 1)
+    for idx, (img, title) in enumerate(zip(images, titles)):
+        # Adds a subplot at the ith position
+        fig.add_subplot(rows, columns, idx+1)
+        # showing image
+        plt.imshow(img)
+        plt.axis('off')
+        plt.title(title)
+    plt.savefig(savepath)
